@@ -21,3 +21,25 @@ static func opposite(d: int) -> int:
 		E: return W
 		W: return E
 	return 0
+
+
+# NONE must stay 0: the pipe grid is a zero-filled PackedInt32Array (0 == no piece).
+# t_junction is deferred (not generated in MVP).
+enum Piece { NONE, STRAIGHT, BEND, CROSS }
+
+
+## Open-edge bitmask for a piece at a rotation (0..3, quarter-turns clockwise).
+static func piece_edges(piece: int, rotation: int) -> int:
+	var r := rotation & 3
+	match piece:
+		Piece.STRAIGHT:
+			return (N | S) if r % 2 == 0 else (E | W)
+		Piece.BEND:
+			match r:
+				0: return N | E
+				1: return E | S
+				2: return S | W
+				_: return W | N
+		Piece.CROSS:
+			return N | E | S | W
+	return 0
