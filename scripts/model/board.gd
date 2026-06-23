@@ -26,10 +26,12 @@ func in_bounds(x: int, y: int) -> bool:
 
 
 func cell_at(x: int, y: int) -> int:
+	assert(in_bounds(x, y), "cell_at out of bounds: (%d, %d)" % [x, y])
 	return _cells[y * width + x]
 
 
 func set_cell(x: int, y: int, t: int) -> void:
+	assert(in_bounds(x, y), "set_cell out of bounds: (%d, %d)" % [x, y])
 	_cells[y * width + x] = t
 
 
