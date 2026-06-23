@@ -9,6 +9,8 @@ const PieceQueue = preload("res://scripts/model/piece_queue.gd")
 const CG = preload("res://scripts/model/channel_graph.gd")
 
 enum Phase { BUILD, FLOW }
+## Round result, distinct from Phase. NONE = undecided (still flowing / closed loop).
+enum Outcome { NONE, CLEARED, BOMB, LEAK }
 
 var board: Board
 var queue: PieceQueue
@@ -53,6 +55,48 @@ func set_pipe(x: int, y: int, piece: int, rot: int = 0) -> void:
 
 func is_node_wet(x: int, y: int, channel: int) -> bool:
 	return _wet_nodes.has(Vector3i(x, y, channel))
+
+
+## The outlet pipe's channel that owns the outlet drain edge is wet.
+func is_cleared() -> bool:
+	var op := board.outlet_pos
+	if not board.in_bounds(op.x, op.y):
+		return false
+	var piece := pipe_at(op.x, op.y)
+	if piece == PT.Piece.NONE:
+		return false
+	var ch := CG.channel_owning_edge(piece, pipe_rot_at(op.x, op.y), board.outlet_dir)
+	return ch >= 0 and is_node_wet(op.x, op.y, ch)
+
+
+## Any wet cell is orthogonally adjacent to a bomb.
+func is_bombed() -> bool:
+	for node in _wet_nodes:
+		for off in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(1, 0), Vector2i(-1, 0)]:
+			var nx: int = node.x + off.x
+			var ny: int = node.y + off.y
+			if board.in_bounds(nx, ny) and board.cell_at(nx, ny) == PT.Cell.BOMB:
+				return true
+	return false
+
+
+## Step the flow to a terminal outcome, checked each ring as CLEARED > BOMB > LEAK
+## (so reaching the outlet beats bomb-adjacency on the same step). Assumes go().
+func resolve() -> int:
+	var o := _outcome_now()
+	while o == Outcome.NONE and step():
+		o = _outcome_now()
+	return o
+
+
+func _outcome_now() -> int:
+	if is_cleared():
+		return Outcome.CLEARED
+	if is_bombed():
+		return Outcome.BOMB
+	if is_leaking():
+		return Outcome.LEAK
+	return Outcome.NONE
 
 
 ## A wet channel exposes an open edge that neither connects to a neighbour pipe nor
