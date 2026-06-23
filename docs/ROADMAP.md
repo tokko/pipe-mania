@@ -44,6 +44,7 @@ Grid caps (9×13) keep cells ≥44 dp in portrait. Hazard caps keep a solution f
 | `FX_LEAK` | route left with one open end | flow **leaks → fail**; control: cap the end → clear |
 | `FX_BOMB_ADJ` | route passes orthogonally adjacent to a bomb | **bomb fail**; control: 1-cell buffer → clear |
 | `FX_CROSSOVER` | two perpendicular flows through one cross | channels **don't mix** (two separate wet paths) |
+| `FX_CROSS_CORNER` | a cross at the inlet/outlet corner where a cell-level BFS would turn through it | channel-aware BFS finds **no route → leak** (proves the scoring BFS cannot corner-cut a cross) |
 | `FX_UNCONNECTED` | inlet/outlet cannot connect | **score 0 AND run-end flag set** |
 | `FX_OUTLET_VS_BOMB` | outlet reached on the same step as bomb-adjacency | **clear wins** (outlet checked first) |
 | `FX_TUTORIAL` | fixed deterministic board for first-board onboarding | completable; completion = water reaches outlet |
@@ -60,16 +61,16 @@ Grid caps (9×13) keep cells ≥44 dp in portrait. Hazard caps keep a solution f
 
 ## E1 — Core model (headless, all [logic])  *(deps: E0)* — pure GDScript, no Node deps
 - **S1.1** `Board`: cell types (`open`/`blocked`/`bomb`), inlet/outlet with fixed edge dirs. `GameState` wraps `Board` + phase (`BUILD`/`FLOW`) + GO transition (phase lives in the core, so E3 needs no local flag).
-- **S1.2** Seeded `BoardGen` + **solvability validation = cell-level BFS over open/non-bomb cells** (no edge semantics yet); **retry cap** N=50 then widen the board. (control: a hand-made unsolvable layout is rejected.)
+- **S1.2** Seeded `BoardGen` + **solvability validation = cell-level BFS over open/non-bomb, bomb-non-adjacent cells** (no edge semantics yet); **retry cap N=50 then reduce hazard density**. (control: a hand-made unsolvable layout is rejected.) Proves corridor existence, not forced-queue realizability — accepted MVP scope-risk.
 - **S1.3** Seeded piece queue (forced top, no skip/pick, 5-preview); **piece + orientation model** (each piece exposes a set of open edges; rotation maps edges); placement + dry-pipe overwrite (control: overwriting **wet** pipe is rejected).
-- **S1.4** Edge-connection graph; **crossover = two independent channel-pairs** (N–S, E–W).
+- **S1.4** **Channel-aware `(cell, channel)` connection graph** shared by step()/leak/both BFS; **`cross` = two disjoint channel nodes** (N–S, E–W) so no traversal corner-cuts a cross.
 - **S1.5a** Deterministic flow `step()` — water advances along connected edges.
 - **S1.5b** Leak eval — front must exit an open edge into a cell with no matching pipe edge → leak.
 - **S1.5c** Bomb-adjacency eval + clear eval, with **outlet-reach checked before bomb** (`FX_OUTLET_VS_BOMB`).
 - **S1.6** **Shortest-route BFS scoring** over the wetted graph (`FX_SHORTCUT`); plus a **dry-graph route-length query** for the live build readout (the only consumer is E2/S2.3).
 - **S1.7** `DifficultyConfig(n)` implementing the pinned table.
 
-**Acceptance (fixtures + controls):** `FX_STRAIGHT8`→8; `FX_SHORTCUT`→4, control→10; `FX_LEAK` fails, control clears; `FX_BOMB_ADJ` fails, control clears; `FX_OUTLET_VS_BOMB` clears; `FX_CROSSOVER` channels don't mix; `FX_UNCONNECTED`→score 0 **and** run-end; forced queue rejects skip/pick; wet-overwrite rejected; `BoardGen` solvable across seeds 1..200; `DifficultyConfig` matches the table exactly at n=0/5/15; expected-vs-actual test count cross-checked.
+**Acceptance (fixtures + controls):** `FX_STRAIGHT8`→8; `FX_SHORTCUT`→4, control→10; `FX_LEAK` fails, control clears; `FX_BOMB_ADJ` fails, control clears; `FX_OUTLET_VS_BOMB` clears; `FX_CROSSOVER` channels don't mix; `FX_CROSS_CORNER` scoring BFS does **not** corner-cut the cross (→ leak); `FX_UNCONNECTED`→score 0 **and** run-end; forced queue rejects skip/pick; wet-overwrite rejected; `BoardGen` solvable across seeds 1..200; `DifficultyConfig` matches the table exactly at n=0/5/15; expected-vs-actual test count cross-checked.
 
 ---
 
