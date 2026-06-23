@@ -95,3 +95,24 @@ func test_cross_no_corner_cut() -> void:  # FX_CROSS_CORNER (graph level)
 	assert_false(_has(ns, 2, 1), "NS channel does NOT reach east — no corner-cut")
 	assert_true(_has(ew, 2, 1), "EW channel connects east")
 	assert_false(_has(ew, 1, 0), "EW channel does NOT reach north — no corner-cut")
+
+
+func test_cross_no_corner_cut_south_west() -> void:  # symmetric coverage
+	var L = Layout.new(3, 3)
+	L.put(1, 1, PT.Piece.CROSS, 0)
+	L.put(1, 2, PT.Piece.STRAIGHT, 0)  # south (N|S)
+	L.put(0, 1, PT.Piece.STRAIGHT, 1)  # west  (E|W)
+	var ns = CG.neighbors(L, 1, 1, 0)
+	var ew = CG.neighbors(L, 1, 1, 1)
+	assert_true(_has(ns, 1, 2), "NS channel connects south")
+	assert_false(_has(ns, 0, 1), "NS channel does NOT reach west")
+	assert_true(_has(ew, 0, 1), "EW channel connects west")
+	assert_false(_has(ew, 1, 2), "EW channel does NOT reach south")
+
+
+func test_cross_adjacent_cross_channels_stay_disjoint() -> void:
+	var L = Layout.new(3, 3)
+	L.put(1, 1, PT.Piece.CROSS, 0)
+	L.put(2, 1, PT.Piece.CROSS, 0)
+	assert_true(_has(CG.neighbors(L, 1, 1, 1), 2, 1), "EW links two adjacent crosses")
+	assert_false(_has(CG.neighbors(L, 1, 1, 0), 2, 1), "NS of left cross never reaches the right cross")
