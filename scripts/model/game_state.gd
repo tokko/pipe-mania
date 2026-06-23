@@ -55,6 +55,27 @@ func is_node_wet(x: int, y: int, channel: int) -> bool:
 	return _wet_nodes.has(Vector3i(x, y, channel))
 
 
+## A wet channel exposes an open edge that neither connects to a neighbour pipe nor
+## is the inlet source / outlet drain edge → water spills (leak).
+func is_leaking() -> bool:
+	for node in _wet_nodes:
+		var chs := CG.channels_for(pipe_at(node.x, node.y), pipe_rot_at(node.x, node.y))
+		if node.z >= chs.size():
+			continue
+		var mask: int = chs[node.z]
+		for d in [PT.N, PT.E, PT.S, PT.W]:
+			if not (mask & d):
+				continue
+			if not CG.link_across(self, node.x, node.y, d).is_empty():
+				continue  # connects onward — no spill
+			if node.x == board.inlet_pos.x and node.y == board.inlet_pos.y and d == board.inlet_dir:
+				continue  # inlet source edge
+			if node.x == board.outlet_pos.x and node.y == board.outlet_pos.y and d == board.outlet_dir:
+				continue  # outlet drain edge
+			return true
+	return false
+
+
 ## Advance the wavefront one ring. Returns true if any new node became wet.
 func step() -> bool:
 	var next: Array = []
