@@ -57,6 +57,58 @@ func is_node_wet(x: int, y: int, channel: int) -> bool:
 	return _wet_nodes.has(Vector3i(x, y, channel))
 
 
+const _NO_NODE := Vector3i(-1, -1, -1)
+
+
+## Cells on the shortest inlet->outlet route over the WET graph; 0 if unconnected.
+## BFS finds the shortest route, so it collapses to the short side of any shortcut
+## (shortcuts need branching / t-junctions — post-MVP — but the rule is already correct).
+func score() -> int:
+	return _shortest_route(true)
+
+
+## Same over PLACED (dry) pipe — feeds E2's live build readout. 0 if not yet connected.
+func dry_route_length() -> int:
+	return _shortest_route(false)
+
+
+func _node_at(pos: Vector2i, dir: int) -> Vector3i:
+	if not board.in_bounds(pos.x, pos.y):
+		return _NO_NODE
+	var piece := pipe_at(pos.x, pos.y)
+	if piece == PT.Piece.NONE:
+		return _NO_NODE
+	var ch := CG.channel_owning_edge(piece, pipe_rot_at(pos.x, pos.y), dir)
+	return _NO_NODE if ch < 0 else Vector3i(pos.x, pos.y, ch)
+
+
+# BFS node-count of the shortest inlet->outlet route; wet_only restricts to wet nodes.
+func _shortest_route(wet_only: bool) -> int:
+	var start := _node_at(board.inlet_pos, board.inlet_dir)
+	var goal := _node_at(board.outlet_pos, board.outlet_dir)
+	if start == _NO_NODE or goal == _NO_NODE:
+		return 0
+	if wet_only and not _wet_nodes.has(start):
+		return 0
+	var dist := {start: 1}
+	var queue: Array = [start]
+	var head := 0
+	while head < queue.size():
+		var node: Vector3i = queue[head]
+		head += 1
+		if node == goal:
+			return dist[node]
+		for nb in CG.neighbors(self, node.x, node.y, node.z):
+			var key := Vector3i(nb[0], nb[1], nb[2])
+			if wet_only and not _wet_nodes.has(key):
+				continue
+			if dist.has(key):
+				continue
+			dist[key] = dist[node] + 1
+			queue.append(key)
+	return 0
+
+
 ## The outlet pipe's channel that owns the outlet drain edge is wet.
 func is_cleared() -> bool:
 	var op := board.outlet_pos
