@@ -6,6 +6,7 @@ extends RefCounted
 const Board = preload("res://scripts/model/board.gd")
 const PT = preload("res://scripts/model/pipe_types.gd")
 const PieceQueue = preload("res://scripts/model/piece_queue.gd")
+const CG = preload("res://scripts/model/channel_graph.gd")
 
 enum Phase { BUILD, FLOW }
 
@@ -15,7 +16,11 @@ var phase: int = Phase.BUILD
 
 var _ptype: PackedInt32Array  # placed piece type per cell (0 == Piece.NONE)
 var _prot: PackedInt32Array   # placed rotation per cell
-var _wet: PackedByteArray     # 1 == water has reached this cell (set by flow, S1.5)
+var _wet: PackedByteArray     # 1 == any channel of this cell is wet (rendering/overwrite)
+
+# Channel-granular flow state (a cross's NS and EW are separate nodes — no aliasing).
+var _wet_nodes: Dictionary = {}  # Vector3i(x, y, channel) -> true
+var _frontier: Array = []        # Vector3i nodes wetted on the last step()
 
 
 func _init(board_: Board, queue_: PieceQueue = null) -> void:
@@ -32,7 +37,55 @@ func _init(board_: Board, queue_: PieceQueue = null) -> void:
 
 ## Lock the build and start the verify flow. Idempotent once flowing.
 func go() -> void:
+	if phase == Phase.FLOW:
+		return
 	phase = Phase.FLOW
+	_begin_flow()
+
+
+## Directly set a cell's pipe, bypassing placement rules. For fixtures/tests and
+## scripted proof scenes — NOT the player path (use place() for that).
+func set_pipe(x: int, y: int, piece: int, rot: int = 0) -> void:
+	var idx := y * board.width + x
+	_ptype[idx] = piece
+	_prot[idx] = rot & 3
+
+
+func is_node_wet(x: int, y: int, channel: int) -> bool:
+	return _wet_nodes.has(Vector3i(x, y, channel))
+
+
+## Advance the wavefront one ring. Returns true if any new node became wet.
+func step() -> bool:
+	var next: Array = []
+	for node in _frontier:
+		for nb in CG.neighbors(self, node.x, node.y, node.z):
+			var key := Vector3i(nb[0], nb[1], nb[2])
+			if not _wet_nodes.has(key):
+				_wet_nodes[key] = true
+				_wet[nb[1] * board.width + nb[0]] = 1
+				next.append(key)
+	_frontier = next
+	return not next.is_empty()
+
+
+# Seed the inlet channel that owns the inlet boundary edge (if the pipe exposes it).
+func _begin_flow() -> void:
+	_wet_nodes.clear()
+	_frontier.clear()
+	var ip := board.inlet_pos
+	if not board.in_bounds(ip.x, ip.y):
+		return
+	var piece := pipe_at(ip.x, ip.y)
+	if piece == PT.Piece.NONE:
+		return
+	var ch := CG.channel_owning_edge(piece, pipe_rot_at(ip.x, ip.y), board.inlet_dir)
+	if ch < 0:
+		return
+	var key := Vector3i(ip.x, ip.y, ch)
+	_wet_nodes[key] = true
+	_wet[ip.y * board.width + ip.x] = 1
+	_frontier = [key]
 
 
 func current_piece() -> int:

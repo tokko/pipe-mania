@@ -20,8 +20,8 @@ func test_generates_dimensions_and_boundary_endpoints() -> void:
 	assert_eq(b.height, 9)
 	assert_eq(b.inlet_pos.x, 0, "inlet on left boundary")
 	assert_eq(b.outlet_pos.x, 6, "outlet on right boundary")
-	assert_eq(b.inlet_dir, PT.E)
-	assert_eq(b.outlet_dir, PT.W)
+	assert_eq(b.inlet_dir, PT.W, "inlet boundary edge is W (left)")
+	assert_eq(b.outlet_dir, PT.E, "outlet boundary edge is E (right)")
 
 
 func test_deterministic_for_same_seed() -> void:

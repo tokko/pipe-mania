@@ -36,8 +36,10 @@ static func generate(seed_: int, w: int, h: int, bombs: int, blocked: int) -> Bo
 
 static func _attempt(rng: RandomNumberGenerator, w: int, h: int, bombs: int, blocked: int) -> Board:
 	var board := Board.new(w, h)
-	board.set_inlet(Vector2i(0, rng.randi_range(0, h - 1)), PT.E)
-	board.set_outlet(Vector2i(w - 1, rng.randi_range(0, h - 1)), PT.W)
+	# *_dir = the cell's boundary edge: water enters the inlet via W (left edge),
+	# exits the outlet via E (right edge). The inlet pipe must expose W to be seeded.
+	board.set_inlet(Vector2i(0, rng.randi_range(0, h - 1)), PT.W)
+	board.set_outlet(Vector2i(w - 1, rng.randi_range(0, h - 1)), PT.E)
 
 	var cells := []
 	for y in h:
