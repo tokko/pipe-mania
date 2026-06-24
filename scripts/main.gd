@@ -10,6 +10,7 @@ const Board = preload("res://scripts/model/board.gd")
 const BoardGen = preload("res://scripts/model/board_gen.gd")
 const GameState = preload("res://scripts/model/game_state.gd")
 const BoardView = preload("res://scripts/view/board_view.gd")
+const HUD = preload("res://scripts/view/hud.gd")
 const Difficulty = preload("res://scripts/model/difficulty.gd")
 const PT = preload("res://scripts/model/pipe_types.gd")
 
@@ -19,7 +20,9 @@ const HUD_TOP := 160
 
 var _gs
 var _bv
+var _hud
 var _rotation := 0  # S2.4 wires the rotation toggle; default = fixed spawn orientation
+var _build_remaining := 0.0  # build-phase countdown (E3 wires GO at zero)
 
 
 func _ready() -> void:
@@ -38,6 +41,17 @@ func _start_game() -> void:
 	add_child(_bv)
 	_bv.setup(_gs, VIEW, MIN_CELL, HUD_TOP)
 	_bv.cell_tapped.connect(_on_cell_tapped)
+	_hud = HUD.new()
+	add_child(_hud)
+	_hud.bind(_bv)
+	_build_remaining = float(c.build_seconds)
+	_hud.set_countdown(c.build_seconds)
+
+
+func _process(delta: float) -> void:
+	if _build_remaining > 0.0:
+		_build_remaining -= delta
+		_hud.set_countdown(maxi(0, ceili(_build_remaining)))
 
 
 func _on_cell_tapped(x: int, y: int) -> void:
@@ -86,3 +100,23 @@ func _run_scripted() -> void:
 	print("PLACE_OK=", ok, " PIECE=", _gs.pipe_at(1, 1))
 	print("PLACE_BAD=", bad)
 	print("STATE_CHANGED_COUNT=", changes[0])
+
+	# --- S2.3: HUD reads model + refreshes on state_changed ---
+	var b3 = Board.new(3, 1)
+	b3.set_inlet(Vector2i(0, 0), PT.W)
+	b3.set_outlet(Vector2i(2, 0), PT.E)
+	var gs3 = GameState.new(b3)
+	var bv3 = BoardView.new()
+	add_child(bv3)
+	bv3.setup(gs3, VIEW, MIN_CELL, 0)
+	var hud = HUD.new()
+	add_child(hud)
+	hud.bind(bv3)
+	hud.set_countdown(25)
+	print("COUNTDOWN_TEXT=", hud.countdown_text())
+	print("PREVIEW_LEN=", hud.preview_len())
+	print("ROUTE_BEFORE=", hud.route_value())
+	for x in 3:
+		gs3.set_pipe(x, 0, PT.Piece.STRAIGHT, 1)
+	bv3.notify_changed()  # state_changed -> HUD refresh
+	print("ROUTE_AFTER=", hud.route_value())

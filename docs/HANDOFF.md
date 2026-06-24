@@ -13,9 +13,9 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - **Process note:** reviewer agents time out on broad scope; use tight, output-bounded reviews.
 
 ## Next session
-- **S2.3** — HUD (`hud.gd`/`hud.tscn`, a CanvasLayer): build countdown label, 5-piece preview
-  (`gs.preview(5)`), live route-length readout (`gs.dry_route_length()`); refresh on
-  `BoardView.state_changed`. Wire into `main.gd` (`_start_game` + scripted check).
+- **S2.4** — in-run settings: a small `Settings` autoload (rotation toggle, audio, haptics flags)
+  + a settings icon/panel. Wire `_rotation` in `main.gd` to read `Settings.rotation_enabled`
+  (default off). Last E2 sprint → then epic-close (E2 proof = the scripted-Main integration).
 
 ## History
 - E0 — Godot 4.6 project + GUT gate (`667a0e5`).
@@ -32,3 +32,4 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - E2 plan — rendering epic plan, council-clean (real ≥44dp control, state_changed contract, headless integration).
 - S2.1 — `grid_layout` (headless: round-trip + floor control) + `tile`/`board_view` (pooled render) + `main` scripted entry + `main.tscn`; integration green.
 - S2.2 — tap-to-place: `BoardView._unhandled_input`→`cell_tapped`; `Main.place_at` (controller mutates model)→`notify_changed`/shake+buzz; touch-down highlight. Integration: PLACE_OK/BAD + STATE_CHANGED_COUNT=1.
+- S2.3 — `hud.gd` (CanvasLayer): countdown + 5-preview + route readout; binds `BoardView.state_changed`; Main countdown tick. Integration: COUNTDOWN/PREVIEW_LEN=5/ROUTE 0→3.
