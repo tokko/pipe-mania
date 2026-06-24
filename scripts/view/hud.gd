@@ -4,6 +4,7 @@ extends CanvasLayer
 
 signal rotate_pressed
 signal go_pressed
+signal restart_pressed
 
 const _PIECE_NAME := {0: "-", 1: "I", 2: "L", 3: "+"}  # NONE/STRAIGHT/BEND/CROSS glyphs
 
@@ -15,6 +16,7 @@ var _countdown_label: Label
 var _route_label: Label
 var _preview_label: Label
 var _outcome_label: Label
+var _score_label: Label
 var _settings_btn: Button
 
 
@@ -23,6 +25,7 @@ func _ready() -> void:
 	_route_label = _mk_label(Vector2(16, 48))
 	_preview_label = _mk_label(Vector2(16, 80))
 	_outcome_label = _mk_label(Vector2(16, 112))
+	_score_label = _mk_label(Vector2(220, 16))
 	_settings_btn = Button.new()
 	_settings_btn.text = "Rot: OFF"
 	_settings_btn.position = Vector2(560, 16)
@@ -38,6 +41,11 @@ func _ready() -> void:
 	go_btn.position = Vector2(560, 96)
 	go_btn.pressed.connect(func() -> void: go_pressed.emit())
 	add_child(go_btn)
+	var restart_btn := Button.new()
+	restart_btn.text = "Restart"
+	restart_btn.position = Vector2(560, 136)
+	restart_btn.pressed.connect(func() -> void: restart_pressed.emit())
+	add_child(restart_btn)
 
 
 func _on_settings() -> void:
@@ -84,6 +92,14 @@ func set_outcome(text: String) -> void:
 
 func outcome_text() -> String:
 	return _outcome_label.text
+
+
+func set_scores(run_score: int, high_score: int) -> void:
+	_score_label.text = "Score: %d  Best: %d" % [run_score, high_score]
+
+
+func score_text() -> String:
+	return _score_label.text
 
 
 # --- accessors for the headless [integration] gate ---

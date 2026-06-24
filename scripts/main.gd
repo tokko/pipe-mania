@@ -13,6 +13,8 @@ const BoardView = preload("res://scripts/view/board_view.gd")
 const FlowAnimator = preload("res://scripts/view/flow_animator.gd")
 const HUD = preload("res://scripts/view/hud.gd")
 const Difficulty = preload("res://scripts/model/difficulty.gd")
+const Run = preload("res://scripts/model/run.gd")
+const SaveStore = preload("res://scripts/save_store.gd")
 const PT = preload("res://scripts/model/pipe_types.gd")
 
 const VIEW := Vector2i(720, 1280)
@@ -22,6 +24,7 @@ const HUD_TOP := 160
 var _gs
 var _bv
 var _hud
+var _run
 var _animator
 var _last_outcome := -1  # last resolved Outcome (for the headless gate / S3.3 display)
 var _last_score := 0
@@ -38,9 +41,19 @@ func _ready() -> void:
 
 
 func _start_game() -> void:
-	var c = Difficulty.config(0)
-	var b = BoardGen.generate(1, c.grid_w, c.grid_h, c.bombs, c.blocked)
-	_gs = GameState.new(b)
+	_run = Run.new(randi())
+	_run.high_score = SaveStore.load_high()
+	_mount_board(_run.next_board())
+
+
+# The single teardown-safe board-mount path (used by _start_game, board-advance, restart).
+# Frees the old view/HUD (no ghost nodes / duplicate signals) and resets the build countdown.
+func _mount_board(gs) -> void:
+	if _bv != null:
+		_bv.queue_free()
+	if _hud != null:
+		_hud.queue_free()
+	_gs = gs
 	_bv = BoardView.new()
 	add_child(_bv)
 	_bv.setup(_gs, VIEW, MIN_CELL, HUD_TOP)
@@ -50,8 +63,13 @@ func _start_game() -> void:
 	_hud.bind(_bv)
 	_hud.rotate_pressed.connect(cycle_rotation)
 	_hud.go_pressed.connect(_start_flow)
+	_hud.restart_pressed.connect(_restart)
+	var idx: int = _run.board_index if _run != null else 0
+	var c = Difficulty.config(idx)
 	_build_remaining = float(c.build_seconds)
 	_hud.set_countdown(c.build_seconds)
+	if _run != null:
+		_hud.set_scores(_run.run_score, _run.high_score)
 
 
 func _process(delta: float) -> void:
@@ -87,6 +105,31 @@ func _on_outcome(outcome: int, score: int) -> void:
 		_bv.highlight_route(_gs.score_route())
 	elif outcome == GameState.Outcome.BOMB:
 		_bv.shake()
+	if _run == null:
+		return  # E3 standalone fixtures: no run loop
+	# Run loop: clear -> bank + next board; fail -> end run + persist high score.
+	if outcome == GameState.Outcome.CLEARED:
+		_run.on_clear(score)
+		_advance_board()  # instant advance for now; a clear-celebration beat is E6 juice
+	else:
+		_run.on_fail()
+		SaveStore.save_high(_run.high_score)
+		_hud.set_outcome(_run_end_text())
+
+
+func _advance_board() -> void:
+	_mount_board(_run.next_board())
+
+
+func _restart() -> void:
+	if _run == null:
+		return
+	_run.restart()
+	_mount_board(_run.next_board())
+
+
+func _run_end_text() -> String:
+	return "RUN OVER  score=%d  best=%d" % [_run.run_score, _run.high_score]
 
 
 func _outcome_text(outcome: int, score: int) -> String:
@@ -283,6 +326,31 @@ func _run_scripted() -> void:
 	# bomb fixture reuses the same _hud -> label flips to "BOMB"
 	_resolve_fixture(_flow_row(1))
 	print("OUTCOME_LABEL_BOMB=", _hud.outcome_text())
+
+	# --- S4.3: Run loop through Main (run-score Σ, board reload, fail->run-end, restart) ---
+	var d := DirAccess.open("user://")  # clean prior high score for deterministic HIGH asserts
+	if d and d.file_exists("highscore.json"):
+		d.remove("highscore.json")
+	_run = Run.new(7)
+	_run.high_score = SaveStore.load_high()
+	_mount_board(_run.next_board())  # board 0
+	var c0 = Difficulty.config(0)
+	print("BOARD0_DIMS=", Vector2i(_gs.board.width, _gs.board.height), " EXP=", Vector2i(c0.grid_w, c0.grid_h))
+	_on_outcome(GameState.Outcome.CLEARED, 4)  # bank 4 -> advance to board 1
+	var c1 = Difficulty.config(1)
+	print("AFTER_C1 INDEX=", _run.board_index, " RUN=", _run.run_score,
+		" DIMS=", Vector2i(_gs.board.width, _gs.board.height), " EXP=", Vector2i(c1.grid_w, c1.grid_h))
+	_on_outcome(GameState.Outcome.CLEARED, 6)
+	_on_outcome(GameState.Outcome.CLEARED, 5)  # now index 3, _gs is board 3
+	var c3 = Difficulty.config(3)
+	print("BOARD3_DIMS=", Vector2i(_gs.board.width, _gs.board.height), " EXP=", Vector2i(c3.grid_w, c3.grid_h))
+	print("RUN_SCORE=", _run.run_score, " INDEX=", _run.board_index)  # expect 15, 3
+	_on_outcome(GameState.Outcome.LEAK, 0)  # verify-fail ends the run
+	print("RUN_OVER=", _run.over, " HIGH=", _run.high_score, " SAVED=", SaveStore.load_high())
+	print("RUNEND_LABEL=", _hud.outcome_text())
+	_restart()
+	print("AFTER_RESTART INDEX=", _run.board_index, " RUN=", _run.run_score, " HIGH=", _run.high_score)
+	print("HUD_SCORE_AFTER_RESTART=", _hud.score_text())
 
 
 # Helpers for the S3.2 scripted flow checks.

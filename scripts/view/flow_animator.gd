@@ -16,6 +16,8 @@ var _timer: Timer
 
 
 func setup(gs, board_view) -> void:
+	if _timer != null:
+		_timer.stop()  # a reload re-points refs; a prior Timer must not double-drive the new board
 	_gs = gs
 	_bv = board_view
 
