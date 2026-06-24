@@ -14,6 +14,7 @@ var _preview: Array = []
 var _countdown_label: Label
 var _route_label: Label
 var _preview_label: Label
+var _outcome_label: Label
 var _settings_btn: Button
 
 
@@ -21,6 +22,7 @@ func _ready() -> void:
 	_countdown_label = _mk_label(Vector2(16, 16))
 	_route_label = _mk_label(Vector2(16, 48))
 	_preview_label = _mk_label(Vector2(16, 80))
+	_outcome_label = _mk_label(Vector2(16, 112))
 	_settings_btn = Button.new()
 	_settings_btn.text = "Rot: OFF"
 	_settings_btn.position = Vector2(560, 16)
@@ -74,6 +76,14 @@ func refresh_from(gs) -> void:
 
 func set_countdown(secs: int) -> void:
 	_countdown_label.text = "Time: %d" % secs
+
+
+func set_outcome(text: String) -> void:
+	_outcome_label.text = text
+
+
+func outcome_text() -> String:
+	return _outcome_label.text
 
 
 # --- accessors for the headless [integration] gate ---

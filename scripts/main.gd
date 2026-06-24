@@ -76,11 +76,29 @@ func _start_flow() -> void:
 	_animator.start()
 
 
-# Verify flow resolved (animator tick loop, or resolve_immediately in the headless gate).
-# S3.3 wires the on-screen display (outcome label, scored-route highlight, bomb shake) here.
+# Verify flow resolved (animator tick loop, or resolve_immediately in the headless gate):
+# show the outcome — label + scored-route highlight on clear + screen shake on bomb.
 func _on_outcome(outcome: int, score: int) -> void:
 	_last_outcome = outcome
 	_last_score = score
+	if _hud != null:
+		_hud.set_outcome(_outcome_text(outcome, score))
+	if outcome == GameState.Outcome.CLEARED:
+		_bv.highlight_route(_gs.score_route())
+	elif outcome == GameState.Outcome.BOMB:
+		_bv.shake()
+
+
+func _outcome_text(outcome: int, score: int) -> String:
+	match outcome:
+		GameState.Outcome.CLEARED:
+			return "CLEARED  score=%d" % score
+		GameState.Outcome.BOMB:
+			return "BOMB"
+		GameState.Outcome.LEAK:
+			return "LEAK"
+		_:
+			return ""
 
 
 func _on_cell_tapped(x: int, y: int) -> void:
@@ -249,6 +267,22 @@ func _run_scripted() -> void:
 	# bomb adjacent only to the outlet -> CLEARED (outlet beats bomb same step)
 	_resolve_fixture(_flow_row(2))
 	print("FLOW_OUTLET_VS_BOMB_OUTCOME=", _last_outcome)
+
+	# --- S3.3: outcome DISPLAY (HUD label + scored-route highlight + bomb shake) ---
+	_gs = _flow_line(5)  # connected -> CLEARED score 5
+	_bv = BoardView.new()
+	add_child(_bv)
+	_bv.setup(_gs, VIEW, MIN_CELL, 0)
+	_hud = HUD.new()
+	add_child(_hud)
+	_start_flow()
+	_animator.resolve_immediately()
+	print("OUTCOME_LABEL=", _hud.outcome_text())
+	print("HL_MATCH=", _bv.highlighted_cells() == _gs.score_route())
+	print("HL_CELLS=", _bv.highlighted_cells().size(), " ROUTE_CELLS=", _gs.score_route().size())
+	# bomb fixture reuses the same _hud -> label flips to "BOMB"
+	_resolve_fixture(_flow_row(1))
+	print("OUTCOME_LABEL_BOMB=", _hud.outcome_text())
 
 
 # Helpers for the S3.2 scripted flow checks.

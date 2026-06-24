@@ -12,6 +12,7 @@ signal state_changed  # emitted after a successful placement; HUD refreshes on i
 var gs
 var layout
 var _tiles: Array = []  # row-major
+var _highlighted: Array = []  # cells of the last scored-route highlight (for the gate)
 
 
 func setup(game_state, viewport: Vector2i, min_cell: int, play_top: int = 0) -> void:
@@ -67,6 +68,20 @@ func _unhandled_input(event: InputEvent) -> void:
 func notify_changed() -> void:
 	refresh()
 	state_changed.emit()
+
+
+# Highlight the scored shortest route on board-clear (Main passes gs.score_route()).
+func highlight_route(cells: Array) -> void:
+	_highlighted = cells.duplicate()
+	var w: int = gs.board.width
+	for c in cells:
+		_tiles[c.y * w + c.x].refresh(
+			gs.board.cell_at(c.x, c.y), gs.pipe_at(c.x, c.y), gs.pipe_rot_at(c.x, c.y),
+			gs.is_wet(c.x, c.y), true)
+
+
+func highlighted_cells() -> Array:
+	return _highlighted
 
 
 # Invalid-tap feedback: a quick horizontal shake (haptic buzz is the controller's job).

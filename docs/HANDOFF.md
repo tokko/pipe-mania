@@ -5,7 +5,7 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 
 ## Current state
 - Gate: `tools/run-gate.ps1` (headless GUT). Green — 79 tests, 78 pass + 1 quarantined control.
-- **E0 ✅ · E1 CLOSED ✅ · E2 CLOSED ✅ — 2/8 sections `proof-passing`. E3 (flow-outcomes) in progress: S3.1+S3.2 built, S3.3 + epic-close remain.**
+- **E0 ✅ · E1 CLOSED ✅ · E2 CLOSED ✅ — 2/8 sections `proof-passing`. E3 (flow-outcomes): all 3 sprints built → entering epic-close.**
 - Model `scripts/model/` (pure, Node-free). View `scripts/view/` (`grid_layout`,`tile`,`board_view`,`flow_animator`,`hud`) + `scripts/main.gd` (controller) + `scenes/main.tscn`. Autoloads: `Config`, `Settings`.
 - Playable build-phase loop + verify flow: render → tap-to-place → HUD → GO/expiry → `FlowAnimator` runs water → resolves CLEARED/LEAK/BOMB (display on screen = S3.3).
 - **[integration] entry = `main.gd` scripted mode** (env `PIPE_TEST`), run HEADLESS via console binary, asserts stdout markers.
@@ -13,10 +13,9 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - **FINDING (human decision):** shortcut-collapse needs t-junctions (deferred) — MVP score = single-path length.
 
 ## Next session
-- **S3.3** — outcome DISPLAY in `Main._on_outcome` (already the animator's resolve handler):
-  HUD outcome label ("CLEARED  score=N" / "LEAK" / "BOMB"); on CLEARED
-  `BoardView.highlight_route(gs.score_route())` (add a Tile highlight pass); on BOMB
-  `BoardView.shake()`. Scripted proof: highlighted route == `gs.score_route()`.
+- **E3 epic-close** (STEP 6): reflection → harden → regression → proof → retro. E3 proof = the
+  scripted-Main flow path resolving fixtures to CLEARED(score)/LEAK/BOMB + outlet-vs-bomb, and
+  the scored-route highlight == `gs.score_route()`. On pass → flow-outcomes 3/8 `proof-passing`.
 
 ## History
 - E0 — Godot 4.6 project + GUT gate (`667a0e5`).
@@ -40,3 +39,4 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - E3 plan — flow-outcomes, council-clean (start_flow guard, resolve_immediately stops Timer, animator-loop test).
 - S3.1 — model `outcome_now()` public + `score_route()` (BFS path) + GO seam (HUD GO button + countdown-expiry, phase-guarded; placement disabled in FLOW). gate 79; integration PHASE 0→1.
 - S3.2 — `FlowAnimator` (Timer step+refresh; `resolve_immediately()` headless path; `outcome_resolved` → `Main._on_outcome`). Integration: CLEARED score=8 / LEAK=3 / BOMB=2 / outlet-vs-bomb=CLEARED.
+- S3.3 — outcome display: HUD outcome label + `BoardView.highlight_route` (white overlay on route cells) + bomb shake, via `Main._on_outcome`. Integration: label "CLEARED score=5", highlight==score_route (5 cells), bomb label "BOMB".
