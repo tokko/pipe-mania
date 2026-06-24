@@ -1,5 +1,10 @@
 ; Engine configuration file.
-; Aqueduct (placeholder name — rename after trademark search before store submit).
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
 
@@ -22,10 +27,11 @@ Services="*res://scripts/services.gd"
 
 window/size/viewport_width=720
 window/size/viewport_height=1280
-window/handheld/orientation=1
 window/stretch/mode="canvas_items"
 window/stretch/aspect="keep_width"
+window/handheld/orientation=1
 
 [rendering]
 
 renderer/rendering_method="mobile"
+textures/vram_compression/import_etc2_astc=true
