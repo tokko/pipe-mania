@@ -7,7 +7,7 @@ const GridLayout = preload("res://scripts/view/grid_layout.gd")
 const Tile = preload("res://scripts/view/tile.gd")
 
 signal cell_tapped(x: int, y: int)
-signal state_changed  # emitted by the view after a successful placement (HUD binds in S2.3)
+signal state_changed  # emitted after a successful placement; HUD refreshes on it
 
 var gs
 var layout

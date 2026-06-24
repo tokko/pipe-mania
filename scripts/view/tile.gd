@@ -4,6 +4,7 @@ extends Node2D
 
 const PT = preload("res://scripts/model/pipe_types.gd")
 const CG = preload("res://scripts/model/channel_graph.gd")
+const _DIRS := [PT.N, PT.E, PT.S, PT.W]  # hoisted: avoid per-_draw array allocation
 
 var size: int = 64
 var cell_type: int = PT.Cell.OPEN
@@ -38,7 +39,7 @@ func _draw() -> void:
 		var c := Vector2(size, size) * 0.5
 		var w := maxf(3.0, size * 0.18)
 		for ch in CG.channels_for(piece, rot):
-			for d in [PT.N, PT.E, PT.S, PT.W]:
+			for d in _DIRS:
 				if ch & d:
 					draw_line(c, c + _edge_off(d) * size * 0.5, col, w)
 
