@@ -5,16 +5,18 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 
 ## Current state
 - Gate: `tools/run-gate.ps1` (headless GUT). Green — 75 tests, 74 pass + 1 quarantined control.
-- E0 ✅ · **E1 (core-model) CLOSED — `proof-passing` (1/8).** · **E2 (rendering): all 4 sprints built → entering epic-close.**
+- **E0 ✅ · E1 (core-model) CLOSED ✅ · E2 (rendering) CLOSED ✅ — 2/8 sections `proof-passing`.**
 - Model `scripts/model/` (pure, Node-free). View `scripts/view/` (`grid_layout`,`tile`,`board_view`,`hud`) + `scripts/main.gd` (controller) + `scenes/main.tscn`. Autoloads: `Config`, `Settings`.
-- Playable build loop works: render → tap-to-place (invalid=shake) → HUD (countdown/preview/route) → rotation toggle.
-- **[integration] entry = `main.gd` scripted mode** (env `PIPE_TEST`), run HEADLESS via console binary. Latest: TILES=5, ROUTE 0→3, PLACE_OK/BAD, ROT_OFF=0/ROT_ON=1.
-- **GOTCHA:** don't name a Node2D method `rotate()` (collides with native; warnings-as-errors → script fails to load → headless hangs because PIPE_TEST quit() never runs). Renamed → `cycle_rotation()`.
+- Playable, PROVEN build-phase loop: render → tap-to-place (invalid=shake) → HUD (countdown/preview/route) → rotation toggle.
+- **[integration] entry = `main.gd` scripted mode** (env `PIPE_TEST`), run HEADLESS via console binary, asserts stdout markers.
+- **GOTCHAS:** (1) never name a Node method like a native (`rotate()`→hang); (2) view code: explicit `var x: T =` when assigning from untyped `gs`/`layout` calls; (3) input mapping uses absolute `event.position` vs `layout.origin` (not `to_local`).
 - **FINDING (human decision):** shortcut-collapse needs t-junctions (deferred) — MVP score = single-path length.
 
 ## Next session
-- **E2 epic-close** (STEP 6): reflection → harden → regression → proof → retro. E2 proof = the
-  scripted-Main headless integration asserting render/tap/HUD/rotation; on pass → section 2/8 `proof-passing`.
+- **Plan E3 (flow-outcomes)** — the verify phase: GO/countdown-expiry → water flows (FlowAnimator
+  drives `GameState.step()`); board resolves CLEARED (geyser + scored-route highlight) / leak (splash) /
+  bomb (shake) on screen. Wire the build-countdown→GO seam in main `_process` (single block). Proof =
+  scripted-Main asserting a fixture clears/leaks/bombs with the right outcome.
 
 ## History
 - E0 — Godot 4.6 project + GUT gate (`667a0e5`).
@@ -33,3 +35,5 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - S2.2 — tap-to-place: `BoardView._unhandled_input`→`cell_tapped`; `Main.place_at` (controller mutates model)→`notify_changed`/shake+buzz; touch-down highlight. Integration: PLACE_OK/BAD + STATE_CHANGED_COUNT=1.
 - S2.3 — `hud.gd` (CanvasLayer): countdown + 5-preview + route readout; binds `BoardView.state_changed`; Main countdown tick. Integration: COUNTDOWN/PREVIEW_LEN=5/ROUTE 0→3.
 - S2.4 — `Settings` autoload (rotation/audio/haptics) + HUD toggle + Rotate buttons; `Main._effective_rotation` gates rotation. Integration: ROT_OFF=0/ROT_ON=1. (Renamed rotate→cycle_rotation.)
+- S2.5 — E2 reflection remediation: absolute tap mapping + hud double-connect guard + input-path test (TAP_CELL=(1,2)).
+- E2 close — harden (Tile _DIRS const), regression green, PROOF PASS → rendering-build-input `proof-passing` (2/8).
