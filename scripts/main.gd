@@ -30,6 +30,7 @@ var _last_outcome := -1  # last resolved Outcome (for the headless gate / S3.3 d
 var _last_score := 0
 var _current_rotation := 0  # player-chosen orientation; used only when Settings.rotation_enabled
 var _build_remaining := 0.0  # build-phase countdown (E3 wires GO at zero)
+var _tutorial_active := false  # first-run onboarding banner showing (dismissed on first GO)
 
 
 func _ready() -> void:
@@ -43,7 +44,12 @@ func _ready() -> void:
 func _start_game() -> void:
 	_run = Run.new(randi())
 	_run.high_score = SaveStore.load_high()
-	_mount_board(_run.next_board())
+	_tutorial_active = not SaveStore.load_tutorial_seen()
+	if _tutorial_active:
+		_mount_board(_run.tutorial_board())  # board 0 = the onboarding board on a fresh run
+		_hud.set_tutorial("Build a path from inlet to outlet. Longer & shortcut-free = more points. Avoid bombs. Tap GO.")
+	else:
+		_mount_board(_run.next_board())
 
 
 # The single teardown-safe board-mount path (used by _start_game, board-advance, restart).
@@ -85,6 +91,11 @@ func _process(delta: float) -> void:
 func _start_flow() -> void:
 	if _gs.phase == GameState.Phase.FLOW:
 		return
+	if _tutorial_active:  # first GO (or countdown-expiry) dismisses the tutorial, once
+		SaveStore.save_tutorial_seen(true)
+		_tutorial_active = false
+		if _hud != null:
+			_hud.clear_tutorial()
 	_gs.go()
 	if _animator == null:
 		_animator = FlowAnimator.new()
@@ -362,6 +373,20 @@ func _run_scripted() -> void:
 	print("ANIM_RUNNING_DURING_FLOW=", _animator.is_running())
 	_mount_board(_run.next_board())  # simulates Restart/advance mid-animation
 	print("ANIM_RUNNING_AFTER_MOUNT=", _animator.is_running())
+
+	# --- E5.2: first-run onboarding tutorial ---
+	var d2 := DirAccess.open("user://")  # fresh state: tutorial not seen
+	if d2 and d2.file_exists("highscore.json"):
+		d2.remove("highscore.json")
+	_start_game()  # fresh run -> tutorial board + banner
+	print("TUTORIAL_SHOWN_FRESH=", _hud.tutorial_text() != "")
+	print("TUTORIAL_BOARD_DIMS=", Vector2i(_gs.board.width, _gs.board.height))  # expect (1, 5)
+	_start_flow()  # first GO dismisses + flags the tutorial
+	print("TUTORIAL_SEEN_AFTER_GO=", SaveStore.load_tutorial_seen())
+	print("BANNER_CLEARED_AFTER_GO=", _hud.tutorial_text() == "")
+	_start_game()  # second run -> tutorial already seen
+	print("TUTORIAL_SHOWN_SEEN=", _hud.tutorial_text() != "")  # expect false
+	print("PROC_BOARD_DIMS=", Vector2i(_gs.board.width, _gs.board.height))  # expect config(0) (5, 7)
 
 
 # Helpers for the S3.2 scripted flow checks.

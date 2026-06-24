@@ -17,6 +17,7 @@ var _route_label: Label
 var _preview_label: Label
 var _outcome_label: Label
 var _score_label: Label
+var _tutorial_label: Label
 var _settings_btn: Button
 
 
@@ -26,6 +27,7 @@ func _ready() -> void:
 	_preview_label = _mk_label(Vector2(16, 80))
 	_outcome_label = _mk_label(Vector2(16, 112))
 	_score_label = _mk_label(Vector2(220, 16))
+	_tutorial_label = _mk_label(Vector2(16, 1180))  # first-run onboarding banner (bottom)
 	_settings_btn = Button.new()
 	_settings_btn.text = "Rot: OFF"
 	_settings_btn.position = Vector2(560, 16)
@@ -100,6 +102,18 @@ func set_scores(run_score: int, high_score: int) -> void:
 
 func score_text() -> String:
 	return _score_label.text
+
+
+func set_tutorial(text: String) -> void:
+	_tutorial_label.text = text
+
+
+func clear_tutorial() -> void:
+	_tutorial_label.text = ""
+
+
+func tutorial_text() -> String:
+	return _tutorial_label.text
 
 
 # --- accessors for the headless [integration] gate ---
