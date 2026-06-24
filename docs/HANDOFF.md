@@ -4,8 +4,8 @@ Autonomous `/crunch` build. Resume pointer: `.auto-sprint-board/crunch-state.jso
 Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/core-model.md`.
 
 ## Current state
-- Gate: `tools/run-gate.ps1` (headless GUT). Green — 95 tests, 94 pass + 1 quarantined control.
-- **E0 ✅ · E1 ✅ · E2 ✅ · E3 ✅ · E4 ✅ · E5 (difficulty-onboarding) CLOSED ✅ — 5/8 sections `proof-passing`.** Remaining: E6 juice, E7a android-export, E7b stubbed-services.
+- Gate: `tools/run-gate.ps1` (headless GUT). Green — 99 tests, 98 pass + 1 quarantined control.
+- **E0 ✅ · E1 ✅ · E2 ✅ · E3 ✅ · E4 ✅ · E5 ✅ · E6 (juice) CLOSED ✅ — 6/8 sections `proof-passing`.** Remaining: E7a android-export, E7b stubbed-services.
 - Model `scripts/model/` (pure, Node-free). View `scripts/view/` (`grid_layout`,`tile`,`board_view`,`flow_animator`,`hud`) + `scripts/main.gd` (controller) + `scenes/main.tscn`. Autoloads: `Config`, `Settings`.
 - Full endless loop: build → GO/expiry → `FlowAnimator` runs water → CLEARED banks score + advances to next (harder) board via `Run`/`_mount_board`; LEAK/BOMB → run-end + `SaveStore` high-score + Restart. HUD shows run/best score.
 - **[integration] entry = `main.gd` scripted mode** (env `PIPE_TEST`), run HEADLESS via console binary, asserts stdout markers.
@@ -13,12 +13,11 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - **FINDING (human decision):** shortcut-collapse needs t-junctions (deferred) — MVP score = single-path length.
 
 ## Next session
-- **Plan E6 (juice)** — the design's art/feel pass: authored vector/shader art, synthesized
-  water/plumbing SFX, placement/flow/clear/bomb animations + particles, haptics, colorblind cues,
-  the clear-celebration beat (deferred from E4), live high-score display (deferred E4), relaxed
-  tutorial clock + banner safe-area (deferred E5). NOTE: much of E6 is **screenshot/audio = manual
-  tier**; the autonomous-provable slice is the wiring/state (SFX hooks fire, animation states
-  advance, haptic calls invoked) — separate the behaviorally-provable from the human-eval visual.
+- **Plan E7a (android-export)** — keystore/SDK/NDK preflight, build a runnable APK, store-listing
+  scaffold, trademark-safe name. CREDENTIAL/SDK-GATED: if the Android SDK/NDK/keystore aren't
+  present, the build can't run autonomously → **stub-and-park** (document the export config +
+  preflight, park the actual APK build for a human with the SDK). Then **E7b (stubbed-services)** —
+  `Ad/Iap/Leaderboard` interfaces + no-op stubs + UI hooks, wired but inert (fully autonomous-provable).
 - Driving inline-continuous (no wait between chunks); ScheduleWakeup still set as a fallback.
 
 ## History
@@ -56,3 +55,7 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - S5.2 (E5.2) — onboarding hook: `_start_game` mounts tutorial board + HUD banner on fresh run; first GO sets `tutorial_seen` + clears banner. HUD tutorial label. Integration: TUTORIAL_SHOWN_FRESH=true/board(1,5)→GO→SEEN=true+banner cleared→2nd run no banner+proc board(5,7). Regression E2/E3/E4 green.
 - E5.3 — reflection BLOCKER fix: `_mount_first_board()` shared by `_start_game`+`_restart` (restart-mid-tutorial stays consistent: RESTART_MID_TUT_BOARD=(1,5)).
 - E5 close — reflection (1 BLOCKER→E5.3), harden no-op (clean), regression green (E2/E3/E4), PROOF PASS → difficulty-onboarding `proof-passing` (5/8).
+- E6 plan — juice, council-clean (proximity=Manhattan≤2; 6 cue sites enumerated; marker drives real glyph). Acceptance-driven; art/audio fidelity = manual tier (acceptance #4).
+- E6.1 — `Audio` autoload (cue map + last_id); Main fires place/invalid/go/clear/leak/bomb. Integration CUE_*=sfx_*.
+- E6.2 — `GameState.is_near_bomb` (Manhattan≤2) + `Tile.cell_marker` glyphs (X/spiky-ring) + near_bomb glow; `Tile.refresh` near_bomb param; BoardView passes it. 4 GUT tests (radius control + markers distinct). gate 99.
+- E6 close — reflection (no BLOCKER), harden (glow on highlight/flash + marker early-return), regression green (E2-E5), PROOF PASS → juice `proof-passing` (6/8).
