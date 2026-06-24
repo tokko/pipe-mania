@@ -5,16 +5,17 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 
 ## Current state
 - Gate: `tools/run-gate.ps1` (headless GUT). Green — 71 tests, 70 pass + 1 quarantined control.
-- E0 ✅ scaffold + gate. **E1 (core-model): all 9 sprints built → entering epic-close.**
+- E0 ✅ · **E1 (core-model) CLOSED — section `proof-passing` (1/8).** Independently reviewed (harden, no blocker).
 - Model in `scripts/model/` (pure GDScript, no Node deps; preloaded, no `class_name`):
   `pipe_types`, `board`, `board_gen`, `piece_queue`, `channel_graph`, `difficulty`, `game_state`.
-- `difficulty.config(n)` = pinned ramp (build_seconds/grid/bombs/blocked/weights), capped + monotonic.
-- **FINDING:** shortcut-collapse needs branching (t-junctions, deferred) — in MVP score = single-path length ("longer wins"), no shortcut risk yet.
+- **FINDING (human decision):** shortcut-collapse needs branching (t-junctions, deferred) — in MVP score = single-path length ("longer wins"), no shortcut risk yet.
+- **Process note:** reviewer agents time out on broad multi-file scope here; use tightly-scoped, output-bounded reviews.
 
 ## Next session
-- **E1 epic-close** (STEP 6): reflection → harden → regression → proof → retro. The `proof` step
-  runs the core-model behavioral proof (headless GUT) asserting every core-model acceptance
-  criterion; on pass, mark the section `proof-passing`. Then plan E2 (rendering).
+- **Plan E2 (rendering-build-input)** — STEP 3: orient, write `docs/epics/rendering-build-input.md`
+  (BoardView/Tile vector `_draw`, tap-to-place via signals, HUD: build countdown + 5-piece preview +
+  live route-length readout, in-run settings), council-review, load kanban. E2 is `[integration]`-gated
+  (run_project + get_debug_output), not headless — the model stays the pure-logic source of truth.
 
 ## History
 - E0 — Godot 4.6 project + GUT gate (`667a0e5`).
