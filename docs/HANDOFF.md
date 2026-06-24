@@ -5,7 +5,7 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 
 ## Current state
 - Gate: `tools/run-gate.ps1` (headless GUT). Green — 95 tests, 94 pass + 1 quarantined control.
-- **E0 ✅ · E1 ✅ · E2 ✅ · E3 ✅ · E4 (endless-run) CLOSED ✅ — 4/8 sections `proof-passing`.** Remaining: E5 difficulty-onboarding, E6 juice, E7a android-export, E7b stubbed-services.
+- **E0 ✅ · E1 ✅ · E2 ✅ · E3 ✅ · E4 ✅ · E5 (difficulty-onboarding) CLOSED ✅ — 5/8 sections `proof-passing`.** Remaining: E6 juice, E7a android-export, E7b stubbed-services.
 - Model `scripts/model/` (pure, Node-free). View `scripts/view/` (`grid_layout`,`tile`,`board_view`,`flow_animator`,`hud`) + `scripts/main.gd` (controller) + `scenes/main.tscn`. Autoloads: `Config`, `Settings`.
 - Full endless loop: build → GO/expiry → `FlowAnimator` runs water → CLEARED banks score + advances to next (harder) board via `Run`/`_mount_board`; LEAK/BOMB → run-end + `SaveStore` high-score + Restart. HUD shows run/best score.
 - **[integration] entry = `main.gd` scripted mode** (env `PIPE_TEST`), run HEADLESS via console binary, asserts stdout markers.
@@ -13,11 +13,13 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - **FINDING (human decision):** shortcut-collapse needs t-junctions (deferred) — MVP score = single-path length.
 
 ## Next session
-- **E5.2** — onboarding hook in Main + HUD tutorial banner: on `_start_game`, if
-  `!SaveStore.load_tutorial_seen()`, mount `Run.tutorial_board()` as board 0 + show banner; first GO
-  sets `tutorial_seen`. Scripted: fresh run TUTORIAL_SHOWN=true + board==tutorial(1x5); once seen →
-  procedural board 0, no banner. Then E5 close → difficulty-onboarding 5/8.
-- Driving inline-continuous now (no wait between chunks); ScheduleWakeup still set as a fallback.
+- **Plan E6 (juice)** — the design's art/feel pass: authored vector/shader art, synthesized
+  water/plumbing SFX, placement/flow/clear/bomb animations + particles, haptics, colorblind cues,
+  the clear-celebration beat (deferred from E4), live high-score display (deferred E4), relaxed
+  tutorial clock + banner safe-area (deferred E5). NOTE: much of E6 is **screenshot/audio = manual
+  tier**; the autonomous-provable slice is the wiring/state (SFX hooks fire, animation states
+  advance, haptic calls invoked) — separate the behaviorally-provable from the human-eval visual.
+- Driving inline-continuous (no wait between chunks); ScheduleWakeup still set as a fallback.
 
 ## History
 - E0 — Godot 4.6 project + GUT gate (`667a0e5`).
@@ -52,3 +54,5 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - E5 plan — difficulty-onboarding, council-clean (tutorial=board-0 substitute→config(1) ramp; SaveStore dict RMW; ramp acceptance owned by existing test_difficulty; screenshot=manual). Ramp already pinned (S1.7), readout+highlight built (E2/E3).
 - S5.1 (E5.1) — `Run.tutorial_board()` (deterministic 1x5 vertical corridor, all-straight, completable w/o rotation) + `SaveStore` dict RMW with `tutorial_seen`. 6 GUT tests (controls: incomplete-corridor, tutorial_seen-non-clobber). gate 95.
 - S5.2 (E5.2) — onboarding hook: `_start_game` mounts tutorial board + HUD banner on fresh run; first GO sets `tutorial_seen` + clears banner. HUD tutorial label. Integration: TUTORIAL_SHOWN_FRESH=true/board(1,5)→GO→SEEN=true+banner cleared→2nd run no banner+proc board(5,7). Regression E2/E3/E4 green.
+- E5.3 — reflection BLOCKER fix: `_mount_first_board()` shared by `_start_game`+`_restart` (restart-mid-tutorial stays consistent: RESTART_MID_TUT_BOARD=(1,5)).
+- E5 close — reflection (1 BLOCKER→E5.3), harden no-op (clean), regression green (E2/E3/E4), PROOF PASS → difficulty-onboarding `proof-passing` (5/8).
