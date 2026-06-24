@@ -18,7 +18,7 @@ func setup(game_state, viewport: Vector2i, min_cell: int, play_top: int = 0) -> 
 	gs = game_state
 	layout = GridLayout.new(gs.board.width, gs.board.height, viewport, min_cell, play_top)
 	for t in _tiles:
-		t.queue_free()
+		t.free()  # synchronous: re-setup (E4 board reload) must not leave queued-but-live tiles
 	_tiles.clear()
 	for y in gs.board.height:
 		for x in gs.board.width:
