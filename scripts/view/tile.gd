@@ -13,16 +13,20 @@ var rot: int = 0
 var wet: bool = false
 var highlight: bool = false
 var near_bomb: bool = false
+var port: int = 0  # 0 none, 1 inlet, 2 outlet
+var port_dir: int = 0  # boundary edge (N/E/S/W bitmask)
 
 
 func refresh(cell_type_: int, piece_: int, rot_: int, wet_: bool, highlight_: bool,
-		near_bomb_: bool = false) -> void:
+		near_bomb_: bool = false, port_: int = 0, port_dir_: int = 0) -> void:
 	cell_type = cell_type_
 	piece = piece_
 	rot = rot_
 	wet = wet_
 	highlight = highlight_
 	near_bomb = near_bomb_
+	port = port_
+	port_dir = port_dir_
 	queue_redraw()
 
 
@@ -60,6 +64,26 @@ func _draw() -> void:
 			for d in _DIRS:
 				if ch & d:
 					draw_line(c, c + _edge_off(d) * size * 0.5, col, w)
+	_draw_port(rect)
+
+
+# Inlet/outlet marker on the boundary edge: green triangle pointing INTO the cell (inlet, water
+# enters) vs red triangle pointing OUT (outlet, water exits) — shape + color, colorblind-safe.
+func _draw_port(rect: Rect2) -> void:
+	if port == 0:
+		return
+	var col := Color(0.20, 0.90, 0.35) if port == 1 else Color(0.95, 0.30, 0.20)
+	var c := rect.position + rect.size * 0.5
+	var off := _edge_off(port_dir)
+	var edge := c + off * (size * 0.5)
+	var inward := edge - off * (size * 0.45)
+	var perp := Vector2(-off.y, off.x) * (size * 0.22)
+	var tri: PackedVector2Array
+	if port == 1:  # inlet: apex points inward
+		tri = PackedVector2Array([edge + perp, edge - perp, inward])
+	else:  # outlet: apex points outward (toward the edge)
+		tri = PackedVector2Array([inward + perp, inward - perp, edge])
+	draw_colored_polygon(tri, col)
 
 
 # Colorblind-safe SHAPE per cell type (X for blocked, spiky ring for bomb) so the type reads

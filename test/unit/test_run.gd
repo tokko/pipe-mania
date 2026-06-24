@@ -58,16 +58,16 @@ func test_tutorial_board_deterministic() -> void:  # E5.1
 
 
 func test_tutorial_board_completable() -> void:  # E5.1 — FX_TUTORIAL completable (no rotation)
-	var gs = Run.new(0).tutorial_board()
-	for y in 5:
-		gs.place(0, y, 0)  # rot-0 straight = N|S; fills the vertical corridor without rotation
+	var gs = Run.new(0).tutorial_board()  # 5x7, inlet (2,0) / outlet (2,6); corridor = column 2
+	for y in 7:
+		gs.place(2, y, 0)  # rot-0 straight = N|S; fills the middle column without rotation
 	gs.go()
 	assert_eq(gs.resolve(), GameState.Outcome.CLEARED, "filled tutorial corridor clears")
 
 
 func test_tutorial_incomplete_does_not_clear() -> void:  # E5.1 control
 	var gs = Run.new(0).tutorial_board()
-	gs.place(0, 0, 0)  # only the top cell -> opens onto empty -> leak
+	gs.place(2, 0, 0)  # only the inlet cell -> opens onto empty -> leak
 	gs.go()
 	assert_ne(gs.resolve(), GameState.Outcome.CLEARED, "an incomplete corridor does not clear")
 

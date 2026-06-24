@@ -37,9 +37,19 @@ func refresh() -> void:
 	var w: int = gs.board.width
 	for y in gs.board.height:
 		for x in w:
+			var p := _port(x, y)
 			_tiles[y * w + x].refresh(
 				gs.board.cell_at(x, y), gs.pipe_at(x, y), gs.pipe_rot_at(x, y), gs.is_wet(x, y),
-				false, gs.is_near_bomb(x, y))
+				false, gs.is_near_bomb(x, y), p.x, p.y)
+
+
+# [port, dir] for a cell: 1=inlet / 2=outlet on its boundary edge, else 0. Returned as Vector2i.
+func _port(x: int, y: int) -> Vector2i:
+	if Vector2i(x, y) == gs.board.inlet_pos:
+		return Vector2i(1, gs.board.inlet_dir)
+	if Vector2i(x, y) == gs.board.outlet_pos:
+		return Vector2i(2, gs.board.outlet_dir)
+	return Vector2i(0, 0)
 
 
 func cell_size() -> int:
@@ -77,9 +87,10 @@ func highlight_route(cells: Array) -> void:
 	_highlighted = cells.duplicate()
 	var w: int = gs.board.width
 	for c in cells:
+		var p := _port(c.x, c.y)
 		_tiles[c.y * w + c.x].refresh(
 			gs.board.cell_at(c.x, c.y), gs.pipe_at(c.x, c.y), gs.pipe_rot_at(c.x, c.y),
-			gs.is_wet(c.x, c.y), true, gs.is_near_bomb(c.x, c.y))
+			gs.is_wet(c.x, c.y), true, gs.is_near_bomb(c.x, c.y), p.x, p.y)
 
 
 func highlighted_cells() -> Array:
@@ -96,6 +107,7 @@ func shake() -> void:
 
 func _flash(x: int, y: int) -> void:
 	var w: int = gs.board.width
+	var p := _port(x, y)
 	_tiles[y * w + x].refresh(
 		gs.board.cell_at(x, y), gs.pipe_at(x, y), gs.pipe_rot_at(x, y), gs.is_wet(x, y), true,
-		gs.is_near_bomb(x, y))
+		gs.is_near_bomb(x, y), p.x, p.y)

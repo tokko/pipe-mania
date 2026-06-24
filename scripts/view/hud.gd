@@ -9,6 +9,8 @@ signal revive_pressed
 signal remove_ads_pressed
 signal leaderboard_pressed
 
+const Tile = preload("res://scripts/view/tile.gd")
+const PT = preload("res://scripts/model/pipe_types.gd")
 const _PIECE_NAME := {0: "-", 1: "I", 2: "L", 3: "+"}  # NONE/STRAIGHT/BEND/CROSS glyphs
 
 var _gs
@@ -21,6 +23,7 @@ var _preview_label: Label
 var _outcome_label: Label
 var _score_label: Label
 var _tutorial_label: Label
+var _current_tile: Tile  # visible preview of the piece you're about to place
 var _settings_btn: Button
 
 
@@ -30,33 +33,32 @@ func _ready() -> void:
 	_preview_label = _mk_label(Vector2(16, 80))
 	_outcome_label = _mk_label(Vector2(16, 112))
 	_score_label = _mk_label(Vector2(220, 16))
-	_tutorial_label = _mk_label(Vector2(16, 1180))  # first-run onboarding banner (bottom)
+	# Onboarding banner: bottom area, word-wrapped so it never runs off-screen.
+	_tutorial_label = _mk_label(Vector2(16, 1078))
+	_tutorial_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_tutorial_label.size = Vector2(690, 0)
+	_tutorial_label.custom_minimum_size = Vector2(690, 0)
+	_mk_label(Vector2(470, 12)).text = "Place:"  # label above the current-piece preview
+	_current_tile = Tile.new()
+	_current_tile.size = 96
+	_current_tile.position = Vector2(470, 40)
+	add_child(_current_tile)
 	_settings_btn = Button.new()
 	_settings_btn.text = "Rot: OFF"
-	_settings_btn.position = Vector2(560, 16)
+	_settings_btn.position = Vector2(360, 16)
 	_settings_btn.pressed.connect(_on_settings)
 	add_child(_settings_btn)
-	var rot_btn := Button.new()
-	rot_btn.text = "Rotate"
-	rot_btn.position = Vector2(560, 56)
-	rot_btn.pressed.connect(func() -> void: rotate_pressed.emit())
-	add_child(rot_btn)
-	var go_btn := Button.new()
-	go_btn.text = "GO"
-	go_btn.position = Vector2(560, 96)
-	go_btn.pressed.connect(func() -> void: go_pressed.emit())
-	add_child(go_btn)
-	var restart_btn := Button.new()
-	restart_btn.text = "Restart"
-	restart_btn.position = Vector2(560, 136)
-	restart_btn.pressed.connect(func() -> void: restart_pressed.emit())
-	add_child(restart_btn)
-	_mk_service_btn("Revive", Vector2(560, 176), func() -> void: revive_pressed.emit())
-	_mk_service_btn("Remove Ads", Vector2(560, 216), func() -> void: remove_ads_pressed.emit())
-	_mk_service_btn("Leaderboard", Vector2(560, 256), func() -> void: leaderboard_pressed.emit())
+	# Action buttons in a BOTTOM bar (below the board) so they never cover the grid or its ports.
+	var by := 1212
+	_mk_btn("GO", Vector2(12, by), func() -> void: go_pressed.emit())
+	_mk_btn("Rotate", Vector2(86, by), func() -> void: rotate_pressed.emit())
+	_mk_btn("Restart", Vector2(196, by), func() -> void: restart_pressed.emit())
+	_mk_btn("Revive", Vector2(316, by), func() -> void: revive_pressed.emit())
+	_mk_btn("Remove Ads", Vector2(430, by), func() -> void: remove_ads_pressed.emit())
+	_mk_btn("Leaderboard", Vector2(582, by), func() -> void: leaderboard_pressed.emit())
 
 
-func _mk_service_btn(text: String, pos: Vector2, cb: Callable) -> void:
+func _mk_btn(text: String, pos: Vector2, cb: Callable) -> void:
 	var b := Button.new()
 	b.text = text
 	b.position = pos
@@ -96,6 +98,7 @@ func refresh_from(gs) -> void:
 	for p in _preview:
 		glyphs += String(_PIECE_NAME.get(p, "?"))
 	_preview_label.text = "Next: " + glyphs
+	_current_tile.refresh(PT.Cell.OPEN, gs.current_piece(), 0, false, false)  # what you place next
 
 
 func set_countdown(secs: int) -> void:
@@ -141,3 +144,7 @@ func preview_len() -> int:
 
 func countdown_text() -> String:
 	return _countdown_label.text
+
+
+func current_piece_shown() -> int:
+	return _current_tile.piece

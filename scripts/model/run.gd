@@ -49,13 +49,14 @@ func restart() -> void:
 	over = false
 
 
-## The first-run onboarding board: a deterministic, trivially-completable VERTICAL corridor
-## (1x5, inlet top / outlet bottom) with an all-straight forced queue. Vertical so the default
-## rot-0 straight (N|S) connects WITHOUT rotation (off by default) — the player just fills the
-## column to learn the build->GO->clear loop. Used as board 0 only until tutorial_seen.
+## The first-run onboarding board: a deterministic, trivially-completable full-width board
+## (5x7 = config(0) dims, so it fills the screen like a real board) with inlet top-middle /
+## outlet bottom-middle and an all-straight forced queue. The solution is a VERTICAL corridor
+## down the middle column — rot-0 straights (N|S) connect WITHOUT rotation (off by default).
+## Used as board 0 only until tutorial_seen.
 func tutorial_board() -> GameState:
-	var b = Board.new(1, 5)
-	b.set_inlet(Vector2i(0, 0), PT.N)
-	b.set_outlet(Vector2i(0, 4), PT.S)
+	var b = Board.new(5, 7)
+	b.set_inlet(Vector2i(2, 0), PT.N)
+	b.set_outlet(Vector2i(2, 6), PT.S)
 	var q = PieceQueue.new(0, {PT.Piece.STRAIGHT: 1})  # all straights
 	return GameState.new(b, q)
