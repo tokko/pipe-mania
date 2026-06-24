@@ -4,19 +4,19 @@ Autonomous `/crunch` build. Resume pointer: `.auto-sprint-board/crunch-state.jso
 Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/core-model.md`.
 
 ## Current state
-- Gate: `tools/run-gate.ps1` (headless GUT). Green — 75 tests, 74 pass + 1 quarantined control.
-- **E0 ✅ · E1 (core-model) CLOSED ✅ · E2 (rendering) CLOSED ✅ — 2/8 sections `proof-passing`.**
-- Model `scripts/model/` (pure, Node-free). View `scripts/view/` (`grid_layout`,`tile`,`board_view`,`hud`) + `scripts/main.gd` (controller) + `scenes/main.tscn`. Autoloads: `Config`, `Settings`.
-- Playable, PROVEN build-phase loop: render → tap-to-place (invalid=shake) → HUD (countdown/preview/route) → rotation toggle.
+- Gate: `tools/run-gate.ps1` (headless GUT). Green — 79 tests, 78 pass + 1 quarantined control.
+- **E0 ✅ · E1 CLOSED ✅ · E2 CLOSED ✅ — 2/8 sections `proof-passing`. E3 (flow-outcomes) in progress: S3.1+S3.2 built, S3.3 + epic-close remain.**
+- Model `scripts/model/` (pure, Node-free). View `scripts/view/` (`grid_layout`,`tile`,`board_view`,`flow_animator`,`hud`) + `scripts/main.gd` (controller) + `scenes/main.tscn`. Autoloads: `Config`, `Settings`.
+- Playable build-phase loop + verify flow: render → tap-to-place → HUD → GO/expiry → `FlowAnimator` runs water → resolves CLEARED/LEAK/BOMB (display on screen = S3.3).
 - **[integration] entry = `main.gd` scripted mode** (env `PIPE_TEST`), run HEADLESS via console binary, asserts stdout markers.
 - **GOTCHAS:** (1) never name a Node method like a native (`rotate()`→hang); (2) view code: explicit `var x: T =` when assigning from untyped `gs`/`layout` calls; (3) input mapping uses absolute `event.position` vs `layout.origin` (not `to_local`).
 - **FINDING (human decision):** shortcut-collapse needs t-junctions (deferred) — MVP score = single-path length.
 
 ## Next session
-- **S3.2** — `FlowAnimator` (`scripts/view/flow_animator.gd`, Node): Timer drives `gs.step()` +
-  `BoardView.refresh()` each tick; checks `gs.outcome_now()`; on terminal/settle stops Timer +
-  emits `outcome_resolved(outcome, score)`. `resolve_immediately()` (stops Timer, `gs.resolve()`,
-  same emit) for the headless gate. Wire `_start_flow()` to start it.
+- **S3.3** — outcome DISPLAY in `Main._on_outcome` (already the animator's resolve handler):
+  HUD outcome label ("CLEARED  score=N" / "LEAK" / "BOMB"); on CLEARED
+  `BoardView.highlight_route(gs.score_route())` (add a Tile highlight pass); on BOMB
+  `BoardView.shake()`. Scripted proof: highlighted route == `gs.score_route()`.
 
 ## History
 - E0 — Godot 4.6 project + GUT gate (`667a0e5`).
@@ -39,3 +39,4 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - E2 close — harden (Tile _DIRS const), regression green, PROOF PASS → rendering-build-input `proof-passing` (2/8).
 - E3 plan — flow-outcomes, council-clean (start_flow guard, resolve_immediately stops Timer, animator-loop test).
 - S3.1 — model `outcome_now()` public + `score_route()` (BFS path) + GO seam (HUD GO button + countdown-expiry, phase-guarded; placement disabled in FLOW). gate 79; integration PHASE 0→1.
+- S3.2 — `FlowAnimator` (Timer step+refresh; `resolve_immediately()` headless path; `outcome_resolved` → `Main._on_outcome`). Integration: CLEARED score=8 / LEAK=3 / BOMB=2 / outlet-vs-bomb=CLEARED.

@@ -10,6 +10,7 @@ const Board = preload("res://scripts/model/board.gd")
 const BoardGen = preload("res://scripts/model/board_gen.gd")
 const GameState = preload("res://scripts/model/game_state.gd")
 const BoardView = preload("res://scripts/view/board_view.gd")
+const FlowAnimator = preload("res://scripts/view/flow_animator.gd")
 const HUD = preload("res://scripts/view/hud.gd")
 const Difficulty = preload("res://scripts/model/difficulty.gd")
 const PT = preload("res://scripts/model/pipe_types.gd")
@@ -21,6 +22,9 @@ const HUD_TOP := 160
 var _gs
 var _bv
 var _hud
+var _animator
+var _last_outcome := -1  # last resolved Outcome (for the headless gate / S3.3 display)
+var _last_score := 0
 var _current_rotation := 0  # player-chosen orientation; used only when Settings.rotation_enabled
 var _build_remaining := 0.0  # build-phase countdown (E3 wires GO at zero)
 
@@ -59,11 +63,24 @@ func _process(delta: float) -> void:
 
 
 # Lock the build and begin the verify flow (GO button or countdown expiry). Guarded so
-# button-then-expiry / re-firing can't double-start. FlowAnimator wiring lands in S3.2.
+# button-then-expiry / re-firing can't double-start.
 func _start_flow() -> void:
 	if _gs.phase == GameState.Phase.FLOW:
 		return
 	_gs.go()
+	if _animator == null:
+		_animator = FlowAnimator.new()
+		add_child(_animator)
+		_animator.outcome_resolved.connect(_on_outcome)
+	_animator.setup(_gs, _bv)
+	_animator.start()
+
+
+# Verify flow resolved (animator tick loop, or resolve_immediately in the headless gate).
+# S3.3 wires the on-screen display (outcome label, scored-route highlight, bomb shake) here.
+func _on_outcome(outcome: int, score: int) -> void:
+	_last_outcome = outcome
+	_last_score = score
 
 
 func _on_cell_tapped(x: int, y: int) -> void:
@@ -209,3 +226,57 @@ func _run_scripted() -> void:
 	_build_remaining = 0.05
 	_process(0.1)  # crosses 0 -> _start_flow
 	print("PHASE_AFTER_EXPIRY=", _gs.phase)
+
+	# --- S3.2: FlowAnimator resolves fixtures via the real flow path (resolve_immediately) ---
+	print("OUTCOME_ENUM NONE=", GameState.Outcome.NONE, " CLEARED=", GameState.Outcome.CLEARED,
+		" BOMB=", GameState.Outcome.BOMB, " LEAK=", GameState.Outcome.LEAK)
+	# connected 8-line -> CLEARED, score 8
+	_resolve_fixture(_flow_line(8))
+	print("FLOW_CLEAR_OUTCOME=", _last_outcome, " SCORE=", _last_score,
+		" ROUTE_LEN=", _gs.score_route().size())
+	# dangling 3-line -> LEAK
+	var bl = Board.new(3, 1)
+	bl.set_inlet(Vector2i(0, 0), PT.W)
+	bl.set_outlet(Vector2i(2, 0), PT.E)
+	var gl = GameState.new(bl)
+	gl.set_pipe(0, 0, PT.Piece.STRAIGHT, 1)
+	gl.set_pipe(1, 0, PT.Piece.STRAIGHT, 1)  # opens onto empty (2,0)
+	_resolve_fixture(gl)
+	print("FLOW_LEAK_OUTCOME=", _last_outcome)
+	# bomb adjacent to a path cell -> BOMB
+	_resolve_fixture(_flow_row(1))
+	print("FLOW_BOMB_OUTCOME=", _last_outcome)
+	# bomb adjacent only to the outlet -> CLEARED (outlet beats bomb same step)
+	_resolve_fixture(_flow_row(2))
+	print("FLOW_OUTLET_VS_BOMB_OUTCOME=", _last_outcome)
+
+
+# Helpers for the S3.2 scripted flow checks.
+func _flow_line(w: int):  # horizontal connected inlet->outlet line
+	var b = Board.new(w, 1)
+	b.set_inlet(Vector2i(0, 0), PT.W)
+	b.set_outlet(Vector2i(w - 1, 0), PT.E)
+	var gs = GameState.new(b)
+	for x in w:
+		gs.set_pipe(x, 0, PT.Piece.STRAIGHT, 1)
+	return gs
+
+
+func _flow_row(bomb_x: int):  # 3x3 row-1 line, bomb at (bomb_x, 0)
+	var b = Board.new(3, 3)
+	b.set_inlet(Vector2i(0, 1), PT.W)
+	b.set_outlet(Vector2i(2, 1), PT.E)
+	b.set_cell(bomb_x, 0, PT.Cell.BOMB)
+	var gs = GameState.new(b)
+	for x in 3:
+		gs.set_pipe(x, 1, PT.Piece.STRAIGHT, 1)
+	return gs
+
+
+func _resolve_fixture(gs) -> void:  # wire a fixture to the real flow path and resolve it
+	_gs = gs
+	_bv = BoardView.new()
+	add_child(_bv)
+	_bv.setup(_gs, VIEW, MIN_CELL, 0)
+	_start_flow()
+	_animator.resolve_immediately()
