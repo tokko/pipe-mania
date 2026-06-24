@@ -5,7 +5,7 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 
 ## Current state
 - Gate: `tools/run-gate.ps1` (headless GUT). Green — 99 tests, 98 pass + 1 quarantined control.
-- **E0 ✅ · E1 ✅ · E2 ✅ · E3 ✅ · E4 ✅ · E5 ✅ · E6 (juice) CLOSED ✅ — 6/8 sections `proof-passing`.** Remaining: E7a android-export, E7b stubbed-services.
+- **E0 ✅ · E1–E6 ✅ (6/8 `proof-passing`) · E7a (android-export) PARKED ⛔ — APK blocked on human toolchain.** Remaining buildable: E7b stubbed-services. **Run terminal will be `drained-but-blocked`** (honest: everything autonomously buildable is done+proven; the Android device APK needs templates+NDK installed by a human — see `parked[]` / `tools/android-preflight.ps1`).
 - Model `scripts/model/` (pure, Node-free). View `scripts/view/` (`grid_layout`,`tile`,`board_view`,`flow_animator`,`hud`) + `scripts/main.gd` (controller) + `scenes/main.tscn`. Autoloads: `Config`, `Settings`.
 - Full endless loop: build → GO/expiry → `FlowAnimator` runs water → CLEARED banks score + advances to next (harder) board via `Run`/`_mount_board`; LEAK/BOMB → run-end + `SaveStore` high-score + Restart. HUD shows run/best score.
 - **[integration] entry = `main.gd` scripted mode** (env `PIPE_TEST`), run HEADLESS via console binary, asserts stdout markers.
@@ -13,11 +13,14 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - **FINDING (human decision):** shortcut-collapse needs t-junctions (deferred) — MVP score = single-path length.
 
 ## Next session
-- **Plan E7a (android-export)** — keystore/SDK/NDK preflight, build a runnable APK, store-listing
-  scaffold, trademark-safe name. CREDENTIAL/SDK-GATED: if the Android SDK/NDK/keystore aren't
-  present, the build can't run autonomously → **stub-and-park** (document the export config +
-  preflight, park the actual APK build for a human with the SDK). Then **E7b (stubbed-services)** —
-  `Ad/Iap/Leaderboard` interfaces + no-op stubs + UI hooks, wired but inert (fully autonomous-provable).
+- **Plan + build E7b (stubbed-services)** — the LAST buildable section (fully autonomous-provable):
+  `AdService`/`IapService`/`LeaderboardService` no-op stub classes (record calls, no network/SDK) +
+  a `Services` autoload (stubs = default impl) + UI hooks (Revive / Remove-Ads / Leaderboard) that
+  call them. Proof: game runs on stubs (no crash); each UI hook logs a call to its interface; no
+  live AdMob/IAP/leaderboard path constructed. → stubbed-services `proof-passing` (7/8).
+- **Then the terminal: `drained-but-blocked`** (STEP 1 #2) — 7/8 proof-passing, android-export
+  parked (HIGH). Emit the STEP 9 digest: coverage, the LOUD parked APK item + remediation, open
+  reflection items (E6 polish: clear-beat, live high-score, tutorial clock, banner safe-area).
 - Driving inline-continuous (no wait between chunks); ScheduleWakeup still set as a fallback.
 
 ## History
@@ -59,3 +62,4 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - E6.1 — `Audio` autoload (cue map + last_id); Main fires place/invalid/go/clear/leak/bomb. Integration CUE_*=sfx_*.
 - E6.2 — `GameState.is_near_bomb` (Manhattan≤2) + `Tile.cell_marker` glyphs (X/spiky-ring) + near_bomb glow; `Tile.refresh` near_bomb param; BoardView passes it. 4 GUT tests (radius control + markers distinct). gate 99.
 - E6 close — reflection (no BLOCKER), harden (glow on highlight/flash + marker early-return), regression green (E2-E5), PROOF PASS → juice `proof-passing` (6/8).
+- E7a (android-export) PARKED — `tools/android-preflight.ps1` (acceptance #1 BLOCKED+remediation proven; on this machine only export-templates+NDK missing) + `export_presets.cfg` scaffold + `docs/store-listing.md`. Council ruling: PARKED not proof-passing (APK unbuilt). APK build+AVD smoke → `parked[]` (HIGH).
