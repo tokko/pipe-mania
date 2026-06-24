@@ -47,7 +47,8 @@ func _mk_label(pos: Vector2) -> Label:
 ## Bind to a BoardView: read its model, refresh now, and refresh on every state change.
 func bind(board_view) -> void:
 	_gs = board_view.gs
-	board_view.state_changed.connect(_on_state_changed)
+	if not board_view.state_changed.is_connected(_on_state_changed):
+		board_view.state_changed.connect(_on_state_changed)  # idempotent across re-binds (E4 reload)
 	refresh_from(_gs)
 
 

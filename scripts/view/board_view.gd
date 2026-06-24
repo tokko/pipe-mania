@@ -15,6 +15,7 @@ var _tiles: Array = []  # row-major
 
 
 func setup(game_state, viewport: Vector2i, min_cell: int, play_top: int = 0) -> void:
+	position = Vector2.ZERO  # clean base (a shake tween mid-reset must not leave an offset)
 	gs = game_state
 	layout = GridLayout.new(gs.board.width, gs.board.height, viewport, min_cell, play_top)
 	for t in _tiles:
@@ -55,7 +56,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		pos = event.position
 	else:
 		return
-	var cell: Vector2i = layout.pixel_to_cell(to_local(pos))
+	# Absolute viewport pos vs absolute layout.origin — robust to BoardView offset (shake).
+	var cell: Vector2i = layout.pixel_to_cell(pos)
 	if gs.board.in_bounds(cell.x, cell.y):
 		_flash(cell.x, cell.y)  # touch-down highlight
 		cell_tapped.emit(cell.x, cell.y)

@@ -150,3 +150,22 @@ func _run_scripted() -> void:
 	print("ROT_ON=", _gs.pipe_rot_at(1, 0))
 	print("AUDIO=", Settings.audio_enabled, " HAPTICS=", Settings.haptics_enabled)
 	Settings.rotation_enabled = false  # reset
+
+	# --- S2.5: real input path maps an absolute tap to the right cell, even with offset ---
+	var b5 = Board.new(3, 3)
+	b5.set_inlet(Vector2i(0, 1), PT.W)
+	b5.set_outlet(Vector2i(2, 1), PT.E)
+	var gs5 = GameState.new(b5)
+	var bv5 = BoardView.new()
+	add_child(bv5)
+	bv5.setup(gs5, VIEW, MIN_CELL, 0)
+	bv5.position = Vector2(50, 50)  # offset MUST NOT shift the mapping (was the to_local bug)
+	var tapped := [Vector2i(-1, -1)]
+	bv5.cell_tapped.connect(func(x: int, y: int) -> void: tapped[0] = Vector2i(x, y))
+	var target := Vector2i(1, 2)
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_LEFT
+	ev.pressed = true
+	ev.position = bv5.layout.cell_to_pixel(target.x, target.y) + Vector2(bv5.cell_size(), bv5.cell_size()) * 0.5
+	bv5._unhandled_input(ev)
+	print("TAP_CELL=", tapped[0])
