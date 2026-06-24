@@ -4,18 +4,18 @@ Autonomous `/crunch` build. Resume pointer: `.auto-sprint-board/crunch-state.jso
 Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/core-model.md`.
 
 ## Current state
-- Gate: `tools/run-gate.ps1` (headless GUT). Green — 71 tests, 70 pass + 1 quarantined control.
-- E0 ✅ · **E1 (core-model) CLOSED — section `proof-passing` (1/8).** Independently reviewed (harden, no blocker).
-- Model in `scripts/model/` (pure GDScript, no Node deps; preloaded, no `class_name`):
-  `pipe_types`, `board`, `board_gen`, `piece_queue`, `channel_graph`, `difficulty`, `game_state`.
-- **FINDING (human decision):** shortcut-collapse needs branching (t-junctions, deferred) — in MVP score = single-path length ("longer wins"), no shortcut risk yet.
-- **Process note:** reviewer agents time out on broad multi-file scope here; use tightly-scoped, output-bounded reviews.
+- Gate: `tools/run-gate.ps1` (headless GUT). Green — 75 tests, 74 pass + 1 quarantined control.
+- E0 ✅ · **E1 (core-model) CLOSED — `proof-passing` (1/8).** · **E2 (rendering) in progress** (S2.1 done).
+- Model in `scripts/model/` (pure, Node-free). **View in `scripts/view/`** (`grid_layout`, `tile`, `board_view`) + `scripts/main.gd` + `scenes/main.tscn` (run/main_scene).
+- View observes the model; `BoardView` declares `cell_tapped` + `state_changed`. `main.gd` scripted mode (env `PIPE_TEST`) is the headless [integration] entry.
+- **Integration check (S2.1):** `PIPE_TEST=1` headless run → TILES=5, CELL_SIZE=144, DRY_ROUTE=5, SAMPLE_20=1.
+- **FINDING (human decision):** shortcut-collapse needs t-junctions (deferred) — MVP score = single-path length.
+- **Process note:** reviewer agents time out on broad scope; use tight, output-bounded reviews.
 
 ## Next session
-- **Plan E2 (rendering-build-input)** — STEP 3: orient, write `docs/epics/rendering-build-input.md`
-  (BoardView/Tile vector `_draw`, tap-to-place via signals, HUD: build countdown + 5-piece preview +
-  live route-length readout, in-run settings), council-review, load kanban. E2 is `[integration]`-gated
-  (run_project + get_debug_output), not headless — the model stays the pure-logic source of truth.
+- **S2.2** — tap-to-place: `BoardView._unhandled_input` → `grid_layout.pixel_to_cell` → emit
+  `cell_tapped` → `GameState.place(x,y,rotation)` → emit `state_changed` + `refresh()`; valid-cell
+  highlight on touch-down; invalid tap (place() false) → shake + buzz, using public `phase`/`cell_at`.
 
 ## History
 - E0 — Godot 4.6 project + GUT gate (`667a0e5`).
@@ -29,3 +29,5 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - S1.5c — `Outcome` + `resolve()` (CLEARED>BOMB>LEAK per ring); FX_OUTLET_VS_BOMB control.
 - S1.6 — `score()`/`dry_route_length()` shortest-route BFS; cross-corner→0 vs bend-control→3.
 - S1.7 — `difficulty.config(n)` pinned ramp table; exact n=0/5/15 + monotonicity + caps.
+- E2 plan — rendering epic plan, council-clean (real ≥44dp control, state_changed contract, headless integration).
+- S2.1 — `grid_layout` (headless: round-trip + floor control) + `tile`/`board_view` (pooled render) + `main` scripted entry + `main.tscn`; integration green.
