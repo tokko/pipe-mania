@@ -91,10 +91,10 @@ func _shortest_route(wet_only: bool) -> int:
 	if wet_only and not _wet_nodes.has(start):
 		return 0
 	var dist := {start: 1}
-	var queue: Array = [start]
+	var bfs: Array = [start]  # frontier queue (not the piece `queue` instance var)
 	var head := 0
-	while head < queue.size():
-		var node: Vector3i = queue[head]
+	while head < bfs.size():
+		var node: Vector3i = bfs[head]
 		head += 1
 		if node == goal:
 			return dist[node]
@@ -105,7 +105,7 @@ func _shortest_route(wet_only: bool) -> int:
 			if dist.has(key):
 				continue
 			dist[key] = dist[node] + 1
-			queue.append(key)
+			bfs.append(key)
 	return 0
 
 
@@ -134,6 +134,8 @@ func is_bombed() -> bool:
 
 ## Step the flow to a terminal outcome, checked each ring as CLEARED > BOMB > LEAK
 ## (so reaching the outlet beats bomb-adjacency on the same step). Assumes go().
+## The seed ring is checked first (before any step) — intentional: if the inlet cell
+## is itself bomb-adjacent or already complete, that resolves immediately.
 func resolve() -> int:
 	var o := _outcome_now()
 	while o == Outcome.NONE and step():
@@ -225,6 +227,8 @@ func is_wet(x: int, y: int) -> bool:
 	return _wet[y * board.width + x] != 0
 
 
+# Cell-level wet flag only (drives rendering + the wet-overwrite rule). Flow seeding
+# uses the channel-granular _wet_nodes — this does NOT make is_node_wet/score see water.
 func mark_wet(x: int, y: int) -> void:
 	_wet[y * board.width + x] = 1
 
