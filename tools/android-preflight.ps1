@@ -30,17 +30,28 @@ if ($es) {
 }
 Check "Godot editor android_sdk_path + java_sdk_path" $hasEditorPaths "Editor Settings > Export > Android: set Android SDK Path + Java SDK Path"
 
-# 4. NDK — env var OR inside the SDK tree
-$hasNdk = ($env:ANDROID_NDK_HOME -and (Test-Path $env:ANDROID_NDK_HOME)) -or ($hasSdk -and (Test-Path "$sdk\ndk"))
-Check "Android NDK" $hasNdk "sdkmanager 'ndk;<version>' (installs under <SDK>\ndk) or set ANDROID_NDK_HOME"
+# 4. NDK — ONLY required for gradle custom builds; the prebuilt-template export (use_gradle_build=false) does not need it
+$presets = Get-Content "$PSScriptRoot\..\export_presets.cfg" -Raw -ErrorAction SilentlyContinue
+$gradle = $presets -match "gradle_build/use_gradle_build=true"
+if ($gradle) {
+	$hasNdk = ($env:ANDROID_NDK_HOME -and (Test-Path $env:ANDROID_NDK_HOME)) -or ($hasSdk -and (Test-Path "$sdk\ndk"))
+	Check "Android NDK (gradle build)" $hasNdk "sdkmanager 'ndk;<version>' (installs under <SDK>\ndk) or set ANDROID_NDK_HOME"
+} else {
+	Write-Output "  [n/a]     Android NDK - not needed (use_gradle_build=false, prebuilt template)"
+}
 
 # 5. JDK keytool on PATH
 $hasKeytool = $null -ne (Get-Command keytool -ErrorAction SilentlyContinue)
 Check "JDK keytool (on PATH)" $hasKeytool "Install a JDK (17+) and add its bin\ to PATH"
 
-# 6. Debug keystore
+# 6. Debug keystore (Godot uses the editor-configured one; ~/.android/debug.keystore is the common default)
 $ks = "$env:USERPROFILE\.android\debug.keystore"
 Check "Debug keystore ($ks)" (Test-Path $ks) "keytool -genkey -v -keystore `"$ks`" -storepass android -alias androiddebugkey -keypass android -dname CN=Android,O=Android,C=US -keyalg RSA -validity 10000"
+
+# 7. ETC2/ASTC VRAM import (Godot fails the Android export — silently, in headless — without this)
+$pg = Get-Content "$PSScriptRoot\..\project.godot" -Raw -ErrorAction SilentlyContinue
+$etc2 = $pg -match "textures/vram_compression/import_etc2_astc=true"
+Check "project.godot import_etc2_astc=true" $etc2 "Project Settings > Rendering > Textures > VRAM Compression > Import ETC2 ASTC = On (or add the line under [rendering])"
 
 Write-Output ""
 if ($missing.Count -eq 0) {
