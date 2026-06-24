@@ -44,9 +44,15 @@ func _ready() -> void:
 func _start_game() -> void:
 	_run = Run.new(randi())
 	_run.high_score = SaveStore.load_high()
+	_mount_first_board()
+
+
+# Board 0 of a run: the onboarding tutorial board (+ banner) until tutorial_seen, else procedural
+# config(0). Shared by _start_game and _restart so the tutorial state and the screen never disagree.
+func _mount_first_board() -> void:
 	_tutorial_active = not SaveStore.load_tutorial_seen()
 	if _tutorial_active:
-		_mount_board(_run.tutorial_board())  # board 0 = the onboarding board on a fresh run
+		_mount_board(_run.tutorial_board())
 		_hud.set_tutorial("Build a path from inlet to outlet. Longer & shortcut-free = more points. Avoid bombs. Tap GO.")
 	else:
 		_mount_board(_run.next_board())
@@ -136,7 +142,7 @@ func _restart() -> void:
 	if _run == null:
 		return
 	_run.restart()
-	_mount_board(_run.next_board())
+	_mount_first_board()  # re-evaluates tutorial state (restart mid-tutorial keeps it consistent)
 
 
 func _run_end_text() -> String:
@@ -387,6 +393,16 @@ func _run_scripted() -> void:
 	_start_game()  # second run -> tutorial already seen
 	print("TUTORIAL_SHOWN_SEEN=", _hud.tutorial_text() != "")  # expect false
 	print("PROC_BOARD_DIMS=", Vector2i(_gs.board.width, _gs.board.height))  # expect config(0) (5, 7)
+
+	# --- E5.3 remediation: Restart DURING the tutorial (before GO) stays consistent ---
+	var d3 := DirAccess.open("user://")
+	if d3 and d3.file_exists("highscore.json"):
+		d3.remove("highscore.json")
+	_start_game()  # fresh -> tutorial board + banner
+	_restart()  # restart BEFORE any GO (tutorial still unseen)
+	print("RESTART_MID_TUT_BOARD=", Vector2i(_gs.board.width, _gs.board.height))  # expect (1, 5)
+	print("RESTART_MID_TUT_BANNER=", _hud.tutorial_text() != "")  # expect true
+	print("RESTART_MID_TUT_FLAG=", _tutorial_active)  # expect true (flag matches screen)
 
 
 # Helpers for the S3.2 scripted flow checks.
