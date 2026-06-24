@@ -4,8 +4,8 @@ Autonomous `/crunch` build. Resume pointer: `.auto-sprint-board/crunch-state.jso
 Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/core-model.md`.
 
 ## Current state
-- Gate: `tools/run-gate.ps1` (headless GUT). Green — 79 tests, 78 pass + 1 quarantined control.
-- **E0 ✅ · E1 CLOSED ✅ · E2 CLOSED ✅ · E3 (flow-outcomes) CLOSED ✅ — 3/8 sections `proof-passing`.**
+- Gate: `tools/run-gate.ps1` (headless GUT). Green — 85 tests, 84 pass + 1 quarantined control.
+- **E0 ✅ · E1 ✅ · E2 ✅ · E3 ✅ — 3/8 sections `proof-passing`. E4 (endless-run) in progress: S4.1 (Run model) built; S4.2 SaveStore + S4.3 wiring remain.**
 - Model `scripts/model/` (pure, Node-free). View `scripts/view/` (`grid_layout`,`tile`,`board_view`,`flow_animator`,`hud`) + `scripts/main.gd` (controller) + `scenes/main.tscn`. Autoloads: `Config`, `Settings`.
 - Playable build-phase loop + verify flow: render → tap-to-place → HUD → GO/expiry → `FlowAnimator` runs water → resolves CLEARED/LEAK/BOMB (display on screen = S3.3).
 - **[integration] entry = `main.gd` scripted mode** (env `PIPE_TEST`), run HEADLESS via console binary, asserts stdout markers.
@@ -13,12 +13,9 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - **FINDING (human decision):** shortcut-collapse needs t-junctions (deferred) — MVP score = single-path length.
 
 ## Next session
-- **Plan E4 (endless-run)** — the run loop: `Run` controller (autoload/singleton) chains boards
-  (board-clear → escalate difficulty → next seeded board), sums per-board score → run total,
-  fail (LEAK/BOMB) → run-end + high-score persistence (`SaveStore`) + restart. This is where the
-  E3 outcome (`outcome_resolved`) drives board transitions and `BoardView`/`HUD` reload (the
-  `_highlighted.clear()` harden is the reload safety net). Proof = scripted multi-board run logging
-  run-score Σ + a fail→run-end.
+- **S4.2** — `SaveStore` (`scripts/save_store.gd`, RefCounted): high score as JSON in
+  `user://highscore.json`; `load_high()->int` (0 if absent/corrupt), `save_high(int)`. GUT
+  round-trip (FileAccess works headless). Then S4.3 wires Main↔Run+SaveStore via `_mount_board()`.
 
 ## History
 - E0 — Godot 4.6 project + GUT gate (`667a0e5`).
@@ -44,3 +41,5 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - S3.2 — `FlowAnimator` (Timer step+refresh; `resolve_immediately()` headless path; `outcome_resolved` → `Main._on_outcome`). Integration: CLEARED score=8 / LEAK=3 / BOMB=2 / outlet-vs-bomb=CLEARED.
 - S3.3 — outcome display: HUD outcome label + `BoardView.highlight_route` (white overlay on route cells) + bomb shake, via `Main._on_outcome`. Integration: label "CLEARED score=5", highlight==score_route (5 cells), bomb label "BOMB".
 - E3 close — reflection (godot-reviewer; 2 false-positives rejected), harden (BoardView `_highlighted.clear()` + shake anchor), regression green (E1+E2 unchanged), PROOF PASS → flow-outcomes `proof-passing` (3/8).
+- E4 plan — endless-run, council-clean (`_mount_board` teardown, proof asserts board dims==config(index), FlowAnimator stops Timer). Run.next_board wires config.weights (fixes E2 gap).
+- S4.1 — `Run` model (RefCounted): on_clear/on_fail/next_board/restart, run-score Σ, index escalation. 6 GUT tests (control: smaller run doesn't lower high). gate 85.
