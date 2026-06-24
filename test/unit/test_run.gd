@@ -3,6 +3,7 @@ extends "res://addons/gut/test.gd"
 ## per-board score, ends on a verify-fail; restart keeps the high score.
 
 const Run = preload("res://scripts/model/run.gd")
+const GameState = preload("res://scripts/model/game_state.gd")
 
 
 func test_three_board_run_sums_score() -> void:  # acceptance: run-score = Σ board scores
@@ -46,6 +47,29 @@ func test_restart_resets_index_and_score_keeps_high() -> void:  # acceptance: re
 	assert_eq(r.run_score, 0, "restart resets score to 0")
 	assert_eq(r.high_score, 9, "high score survives restart")
 	assert_false(r.over, "restart clears the over flag")
+
+
+func test_tutorial_board_deterministic() -> void:  # E5.1
+	var a = Run.new(0).tutorial_board()
+	var b = Run.new(0).tutorial_board()
+	assert_eq(a.board.width, b.board.width, "same tutorial board dims")
+	assert_eq(a.board.height, b.board.height)
+	assert_eq(a.preview(3), b.preview(3), "same forced queue (deterministic)")
+
+
+func test_tutorial_board_completable() -> void:  # E5.1 — FX_TUTORIAL completable (no rotation)
+	var gs = Run.new(0).tutorial_board()
+	for y in 5:
+		gs.place(0, y, 0)  # rot-0 straight = N|S; fills the vertical corridor without rotation
+	gs.go()
+	assert_eq(gs.resolve(), GameState.Outcome.CLEARED, "filled tutorial corridor clears")
+
+
+func test_tutorial_incomplete_does_not_clear() -> void:  # E5.1 control
+	var gs = Run.new(0).tutorial_board()
+	gs.place(0, 0, 0)  # only the top cell -> opens onto empty -> leak
+	gs.go()
+	assert_ne(gs.resolve(), GameState.Outcome.CLEARED, "an incomplete corridor does not clear")
 
 
 func test_next_board_escalates_grid_with_index() -> void:

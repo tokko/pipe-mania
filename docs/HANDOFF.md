@@ -4,7 +4,7 @@ Autonomous `/crunch` build. Resume pointer: `.auto-sprint-board/crunch-state.jso
 Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/core-model.md`.
 
 ## Current state
-- Gate: `tools/run-gate.ps1` (headless GUT). Green — 89 tests, 88 pass + 1 quarantined control.
+- Gate: `tools/run-gate.ps1` (headless GUT). Green — 95 tests, 94 pass + 1 quarantined control.
 - **E0 ✅ · E1 ✅ · E2 ✅ · E3 ✅ · E4 (endless-run) CLOSED ✅ — 4/8 sections `proof-passing`.** Remaining: E5 difficulty-onboarding, E6 juice, E7a android-export, E7b stubbed-services.
 - Model `scripts/model/` (pure, Node-free). View `scripts/view/` (`grid_layout`,`tile`,`board_view`,`flow_animator`,`hud`) + `scripts/main.gd` (controller) + `scenes/main.tscn`. Autoloads: `Config`, `Settings`.
 - Full endless loop: build → GO/expiry → `FlowAnimator` runs water → CLEARED banks score + advances to next (harder) board via `Run`/`_mount_board`; LEAK/BOMB → run-end + `SaveStore` high-score + Restart. HUD shows run/best score.
@@ -13,10 +13,10 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - **FINDING (human decision):** shortcut-collapse needs t-junctions (deferred) — MVP score = single-path length.
 
 ## Next session
-- **Plan E5 (difficulty-onboarding)** — tune the `Difficulty.config(n)` ramp (already pinned in E1)
-  + first-board onboarding/tutorial that teaches the non-obvious shortest-route scoring. The ramp
-  exists; E5 is about validating its curve (build-time floor, hazard caps, ≥44dp cell cap, piece-mix)
-  and a one-board guided intro. Proof = config-curve assertions + onboarding-state behavior.
+- **E5.2** — onboarding hook in Main + HUD tutorial banner: on `_start_game`, if
+  `!SaveStore.load_tutorial_seen()`, mount `Run.tutorial_board()` as board 0 + show banner; first GO
+  sets `tutorial_seen`. Scripted: fresh run TUTORIAL_SHOWN=true + board==tutorial(1x5); once seen →
+  procedural board 0, no banner. Then E5 close → difficulty-onboarding 5/8.
 - Driving inline-continuous now (no wait between chunks); ScheduleWakeup still set as a fallback.
 
 ## History
@@ -49,3 +49,5 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - S4.3 — wire Main↔Run+SaveStore: `_mount_board()` (frees old _bv/_hud, resets countdown), `_on_outcome` run loop (guarded by _run!=null → E3 preserved), `_restart`, HUD run/best score + Restart btn, FlowAnimator.setup() stops Timer. Integration: RUN_SCORE=15, BOARD3_DIMS=(6,8)==config(3), RUN_OVER+HIGH=15 saved, restart→0 keeps best. E3 markers regression-green.
 - S4.4 — E4 reflection BLOCKER fix: `FlowAnimator.stop()`+`is_running()`; `_mount_board` stops the animator before freeing `_bv` (Restart/advance-mid-flow no longer ticks a freed node). Integration: ANIM_RUNNING_DURING_FLOW=true→AFTER_MOUNT=false.
 - E4 close — harden (typed Main fields + dropped dead guards), regression green (E2+E3 markers), PROOF PASS → endless-run `proof-passing` (4/8).
+- E5 plan — difficulty-onboarding, council-clean (tutorial=board-0 substitute→config(1) ramp; SaveStore dict RMW; ramp acceptance owned by existing test_difficulty; screenshot=manual). Ramp already pinned (S1.7), readout+highlight built (E2/E3).
+- S5.1 (E5.1) — `Run.tutorial_board()` (deterministic 1x5 vertical corridor, all-straight, completable w/o rotation) + `SaveStore` dict RMW with `tutorial_seen`. 6 GUT tests (controls: incomplete-corridor, tutorial_seen-non-clobber). gate 95.

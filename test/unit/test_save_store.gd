@@ -28,6 +28,25 @@ func test_overwrite_keeps_latest() -> void:
 	assert_eq(SaveStore.load_high(), 25, "latest save wins")
 
 
+func test_tutorial_seen_default_false() -> void:  # E5.1
+	_clear()
+	assert_false(SaveStore.load_tutorial_seen(), "no save -> tutorial not seen")
+
+
+func test_tutorial_seen_roundtrip() -> void:  # E5.1
+	_clear()
+	SaveStore.save_tutorial_seen(true)
+	assert_true(SaveStore.load_tutorial_seen())
+
+
+func test_tutorial_seen_does_not_clobber_high() -> void:  # E5.1 control (read-modify-write)
+	_clear()
+	SaveStore.save_high(50)
+	SaveStore.save_tutorial_seen(true)
+	assert_eq(SaveStore.load_high(), 50, "saving tutorial_seen must not wipe the high score")
+	assert_true(SaveStore.load_tutorial_seen())
+
+
 func test_wrong_shape_returns_zero() -> void:  # control (must be able to go red)
 	# Valid JSON but not the expected {"high": int} dict -> 0. (Avoids triggering Godot's
 	# JSON-parse error log on raw garbage, which would spam the gate's stderr.)
