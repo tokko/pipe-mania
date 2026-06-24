@@ -79,7 +79,7 @@ func highlight_route(cells: Array) -> void:
 	for c in cells:
 		_tiles[c.y * w + c.x].refresh(
 			gs.board.cell_at(c.x, c.y), gs.pipe_at(c.x, c.y), gs.pipe_rot_at(c.x, c.y),
-			gs.is_wet(c.x, c.y), true)
+			gs.is_wet(c.x, c.y), true, gs.is_near_bomb(c.x, c.y))
 
 
 func highlighted_cells() -> Array:
@@ -97,4 +97,5 @@ func shake() -> void:
 func _flash(x: int, y: int) -> void:
 	var w: int = gs.board.width
 	_tiles[y * w + x].refresh(
-		gs.board.cell_at(x, y), gs.pipe_at(x, y), gs.pipe_rot_at(x, y), gs.is_wet(x, y), true)
+		gs.board.cell_at(x, y), gs.pipe_at(x, y), gs.pipe_rot_at(x, y), gs.is_wet(x, y), true,
+		gs.is_near_bomb(x, y))

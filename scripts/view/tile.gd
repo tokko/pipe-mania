@@ -65,9 +65,12 @@ func _draw() -> void:
 # Colorblind-safe SHAPE per cell type (X for blocked, spiky ring for bomb) so the type reads
 # without relying on the background hue.
 func _draw_marker(rect: Rect2) -> void:
+	var marker := cell_marker(cell_type)
+	if marker == 0:  # OPEN: no glyph
+		return
 	var c := rect.position + rect.size * 0.5
 	var r := size * 0.22
-	match cell_marker(cell_type):
+	match marker:
 		1:  # BLOCKED: an X
 			var w := maxf(2.0, size * 0.08)
 			draw_line(c + Vector2(-r, -r), c + Vector2(r, r), Color(0.85, 0.85, 0.88), w)
