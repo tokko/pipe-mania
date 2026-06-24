@@ -97,6 +97,7 @@ func _process(delta: float) -> void:
 func _start_flow() -> void:
 	if _gs.phase == GameState.Phase.FLOW:
 		return
+	Audio.play("go")
 	if _tutorial_active:  # first GO (or countdown-expiry) dismisses the tutorial, once
 		SaveStore.save_tutorial_seen(true)
 		_tutorial_active = false
@@ -116,6 +117,13 @@ func _start_flow() -> void:
 func _on_outcome(outcome: int, score: int) -> void:
 	_last_outcome = outcome
 	_last_score = score
+	match outcome:
+		GameState.Outcome.CLEARED:
+			Audio.play("clear")
+		GameState.Outcome.BOMB:
+			Audio.play("bomb")
+		GameState.Outcome.LEAK:
+			Audio.play("leak")
 	if _hud != null:
 		_hud.set_outcome(_outcome_text(outcome, score))
 	if outcome == GameState.Outcome.CLEARED:
@@ -169,8 +177,10 @@ func _on_cell_tapped(x: int, y: int) -> void:
 func place_at(x: int, y: int) -> bool:
 	if _gs.place(x, y, _effective_rotation()):
 		_bv.notify_changed()
+		Audio.play("place")
 		return true
 	_bv.shake()
+	Audio.play("invalid")
 	if Settings.haptics_enabled:
 		Input.vibrate_handheld(40)
 	return false
@@ -403,6 +413,30 @@ func _run_scripted() -> void:
 	print("RESTART_MID_TUT_BOARD=", Vector2i(_gs.board.width, _gs.board.height))  # expect (1, 5)
 	print("RESTART_MID_TUT_BANNER=", _hud.tutorial_text() != "")  # expect true
 	print("RESTART_MID_TUT_FLAG=", _tutorial_active)  # expect true (flag matches screen)
+
+	# --- E6.1: each gameplay event maps to its SFX id ---
+	_run = null  # isolate cue checks from the run loop
+	_tutorial_active = false
+	var b8 = Board.new(3, 3)
+	b8.set_inlet(Vector2i(0, 1), PT.W)
+	b8.set_outlet(Vector2i(2, 1), PT.E)
+	b8.set_cell(2, 2, PT.Cell.BLOCKED)
+	_gs = GameState.new(b8)
+	_bv = BoardView.new()
+	add_child(_bv)
+	_bv.setup(_gs, VIEW, MIN_CELL, 0)
+	place_at(1, 1)  # valid placement
+	print("CUE_PLACE=", Audio.last_id)
+	place_at(2, 2)  # blocked -> invalid
+	print("CUE_INVALID=", Audio.last_id)
+	_start_flow()
+	print("CUE_GO=", Audio.last_id)
+	_on_outcome(GameState.Outcome.CLEARED, 5)
+	print("CUE_CLEAR=", Audio.last_id)
+	_on_outcome(GameState.Outcome.LEAK, 0)
+	print("CUE_LEAK=", Audio.last_id)
+	_on_outcome(GameState.Outcome.BOMB, 0)
+	print("CUE_BOMB=", Audio.last_id)
 
 
 # Helpers for the S3.2 scripted flow checks.
