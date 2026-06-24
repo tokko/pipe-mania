@@ -5,19 +5,23 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 
 ## Current state
 - Gate: `tools/run-gate.ps1` (headless GUT). Green — 102 tests, 101 pass + 1 quarantined control.
-- **RUN TERMINAL: `drained-but-blocked` (autonomous run complete).** E0 ✅ · E1–E6 ✅ · E7b ✅ — **7/8 sections `proof-passing`** · E7a (android-export) **PARKED ⛔** (APK blocked on human toolchain).
-- **ONE human task to finish the device build:** install Godot 4.6.2 Android export templates + the NDK (SDK / editor SDK+JDK paths / keytool / debug keystore already OK), then `tools/android-preflight.ps1` → GREEN → `godot --headless --export-debug Android build/aqueduct.apk` → AVD smoke. Everything else is built, proven, and pushed.
-- Model `scripts/model/` (pure, Node-free). View `scripts/view/` (`grid_layout`,`tile`,`board_view`,`flow_animator`,`hud`) + `scripts/main.gd` (controller) + `scenes/main.tscn`. Autoloads: `Config`, `Settings`.
+- **E0 ✅ · E1–E6 ✅ · E7b ✅ — 7/8 sections `proof-passing`. E7a (android-export) APK PARK LIFTED ✅** — the APK now builds headless, installs, and BOOTS on device `RFCYA02N5LZ` (was blocked on Godot export templates + the `import_etc2_astc` project setting; both resolved 2026-06-24). To formally close the run as `done` (8/8): flip android-export → proof-passing + run the final council (pending user go-ahead).
+- **Build recipe (GREEN):** `tools/android-preflight.ps1` → `godot --headless --export-debug Android build/aqueduct.apk` → `adb start-server` then `adb -s <dev> install -r`. See `docs/epics/android-export.md` "RESOLVED" section for the full gotcha list (ETC2 silent-fail, editor clobbers project.godot, adb cold-start eats install).
+- **On-device UX pass (2026-06-24):** inlet/outlet markers (green ▽ in / red ▽ out), HUD "Place:" current-piece preview, tutorial widened 1×5→5×7 (fills width), action buttons moved to a bottom bar (off the grid), banner word-wraps.
+- Model `scripts/model/` (pure, Node-free). View `scripts/view/` (`grid_layout`,`tile`,`board_view`,`flow_animator`,`hud`) + `scripts/main.gd` (controller) + `scenes/main.tscn`. Autoloads: `Config`, `Settings`, `Audio`, `Services`.
 - Full endless loop: build → GO/expiry → `FlowAnimator` runs water → CLEARED banks score + advances to next (harder) board via `Run`/`_mount_board`; LEAK/BOMB → run-end + `SaveStore` high-score + Restart. HUD shows run/best score.
 - **[integration] entry = `main.gd` scripted mode** (env `PIPE_TEST`), run HEADLESS via console binary, asserts stdout markers.
 - **GOTCHAS:** (1) never name a Node method like a native (`rotate()`→hang); (2) view code: explicit `var x: T =` when assigning from untyped `gs`/`layout` calls; (3) input mapping uses absolute `event.position` vs `layout.origin` (not `to_local`); (4) `JSON.parse_string` on raw garbage logs an ERROR to stderr (still returns null) → in tests use VALID-but-wrong-shape JSON for negative controls, else the PS gate's `2>&1` escalates it to NativeCommandError; (5) `git add` a non-existent path (e.g. a `.uid`) aborts the whole add — list only real paths.
 - **FINDING (human decision):** shortcut-collapse needs t-junctions (deferred) — MVP score = single-path length.
 
 ## Next session
-- **Autonomous run is COMPLETE (drained-but-blocked).** To resume toward full `done`: do the ONE
-  human task above (install Android export templates + NDK) so android-export can build + AVD-smoke,
-  then re-run `/crunch` — it will detect the APK is buildable, lift the park, and run the final
-  full-design-doc `done` council. Until then the design is implemented to the autonomous ceiling.
+- **APK builds + boots on-device now** — the toolchain park is lifted. To close the run as `done`
+  (8/8): flip android-export → proof-passing (its acceptance is met: APK builds headless + installs +
+  boots; a fixed-seed board-clear smoke would fully satisfy #3) and run the final design-doc council.
+- **Known UX follow-ups (logged this session, none blocking):** bottom button-bar uses a hardcoded
+  `y=1212` — fine on portrait phones (verified) but could clip on a short/tablet aspect; move to a
+  bottom-anchored Control for true responsiveness. Buttons (Revive/RemoveAds/Leaderboard) are dev
+  stubs always-on — gate them contextually (Revive on run-over) in a real menu pass.
 - **Optional polish** (logged in `open_reflection_items`, none gating): E6 clear-celebration beat,
   live high-score display, relaxed tutorial clock, banner safe-area; live AdMob/IAP/leaderboard wiring
   (needs accounts); trademark search before finalizing the "Aqueduct" name.
@@ -64,3 +68,10 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - E7a (android-export) PARKED — `tools/android-preflight.ps1` (acceptance #1 BLOCKED+remediation proven; on this machine only export-templates+NDK missing) + `export_presets.cfg` scaffold + `docs/store-listing.md`. Council ruling: PARKED not proof-passing (APK unbuilt). APK build+AVD smoke → `parked[]` (HIGH).
 - E7b (stubbed-services) — `Services` autoload (Ad/IAP/Leaderboard no-op stubs) + HUD Revive/RemoveAds/Leaderboard hooks → Main. 3 GUT tests; integration HOOK_REVIVE/REMOVEADS/LB; #3 no-live-path structural. gate 102. PROOF PASS → stubbed-services `proof-passing` (7/8).
 - TERMINAL — `drained-but-blocked`: 7/8 proof-passing, android-export parked (HIGH APK). Autonomous ceiling reached; APK is the human remainder.
+
+### 2026-06-24 · post-crunch follow-up (APK build + on-device UX) → done · `e6203fb`
+- **APK park LIFTED:** built headless + installed + booting on device `RFCYA02N5LZ`. Root cause = missing `rendering/textures/vram_compression/import_etc2_astc=true` (`f810028`); Godot 4.6.2 hides export-config errors outside the editor GUI. Installed the 1.2 GB export templates. Preflight fixed (`6cfde7f`): checks ETC2 + NDK only-for-gradle → GREEN.
+- **UX (`e6203fb`, on-device verified):** inlet/outlet triangle markers, HUD "Place:" current-piece preview, tutorial 1×5→5×7 full-width, action buttons → bottom bar (off grid), banner word-wrap.
+- **Caveats discovered:** Godot export errors are editor-GUI-only (read them there first, don't guess presets); the open editor re-saves/clobbers `project.godot`; `adb install -r` is silently lost to a cold daemon (`adb start-server` first). Full list in `docs/epics/android-export.md` "RESOLVED" section.
+- **Review:** gate 102 green; adversarial HIGH (`draw_colored_polygon` Color arg) rejected as false-positive (correct API + verified rendering 740/1051 px); 2 MEDIUM logged (bottom-bar hardcoded y responsive caveat; HUD re-bind mitigated by `_mount_board` recreating the HUD).
+- **Carry-over:** flip android-export → proof-passing + final council to close run `done` (8/8) — pending user go-ahead; responsive bottom-bar; contextual service-button gating.

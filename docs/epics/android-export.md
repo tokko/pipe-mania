@@ -74,3 +74,39 @@ parks the run at `drained-but-blocked` — the honest terminal, NOT `done`.
 
 - No extension skill — E7a adds no `add-<concept>` extensible variants.
 - This is the design's "manual milestone after the run" boundary for the actual device build.
+
+## RESOLVED 2026-06-24 — APK built, installed, booting on-device (park lifted)
+
+The park was cleared in a follow-up session. The APK now builds headless, installs, and boots on a
+real device (Samsung `RFCYA02N5LZ`). What it took + the gotchas (read before touching Android export):
+
+- **The actual blocker was ONE project setting:** `rendering/textures/vram_compression/import_etc2_astc=true`
+  (in `project.godot` under `[rendering]`). Android requires ETC2/ASTC texture import; without it the
+  export fails. **Godot 4.6.2 prints only a bare `ERROR: Cannot export project with preset "Android"
+  due to configuration errors:` with NO field detail in headless** (`--export-debug`), non-headless
+  console, AND every log. The specific red error (`Target platform requires 'ETC2/ASTC' texture
+  compression`) renders ONLY in the editor's **Project → Export** dialog. **Lesson: when a headless
+  Godot export fails with no detail, open the editor's Export dialog (or ask the human to) to read
+  the red line FIRST — do not guess preset fields. Minimal vs full preset fail identically, so a
+  failing export with no detail is almost never a preset-content problem.**
+- **Toolchain (non-gradle / prebuilt-template path, `use_gradle_build=false`):** needs Godot's Android
+  **export templates** (`%APPDATA%/Godot/export_templates/4.6.2.stable/android_debug.apk` — the .tpz
+  is ~1.2 GB from the official GitHub release, extract `templates/*` into that dir) + the Android SDK
+  (build-tools/apksigner + a platform) + a debug keystore + the editor's `android_sdk_path`/
+  `java_sdk_path`. **The NDK is NOT needed for non-gradle exports** (only gradle custom builds) —
+  `tools/android-preflight.ps1` now treats it as n/a unless `use_gradle_build=true`. JDK 24 worked
+  (JDK version was a red herring — the editor validated fine with it).
+- **GOTCHA — the editor clobbers `project.godot`:** an OPEN Godot editor re-saves `project.godot` on
+  exit/settings-change from its in-memory state, silently dropping hand-edits (lost `import_etc2_astc`
+  once). **Close the Aqueduct editor before editing project settings via file, then re-apply.** Kill
+  only the project's editor (`Get-CimInstance Win32_Process … CommandLine -match 'pipe-mania'`) — the
+  user may have other Godot projects open.
+- **GOTCHA — `adb install -r` silently lost to a cold daemon:** if the adb server isn't already
+  running, `install -r` races the daemon cold-start and the device keeps the OLD apk (you debug a
+  fix that "didn't take"). **Always `adb start-server` + `adb devices` first, then install and
+  confirm `Success` explicitly.** Verify on-device by scanning the screencap for expected pixels, not
+  by assuming the install took.
+- Build/verify recipe (now GREEN): `tools/android-preflight.ps1` → `godot --headless --export-debug
+  Android build/aqueduct.apk` → `adb -s <dev> install -r` → `monkey -p org.aqueduct.game` →
+  `exec-out screencap`. The export config (`export_presets.cfg`) is the editor-normalized canonical
+  preset (a hand-written minimal one fails validation — let the editor generate it).
