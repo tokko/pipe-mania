@@ -78,6 +78,9 @@ func _mount_board(gs) -> void:
 	_hud.rotate_pressed.connect(cycle_rotation)
 	_hud.go_pressed.connect(_start_flow)
 	_hud.restart_pressed.connect(_restart)
+	_hud.revive_pressed.connect(_on_revive)
+	_hud.remove_ads_pressed.connect(_on_remove_ads)
+	_hud.leaderboard_pressed.connect(_on_leaderboard)
 	var c = Difficulty.config(_run.board_index)  # _mount_board is only ever called after _run is set
 	_build_remaining = float(c.build_seconds)
 	_hud.set_countdown(c.build_seconds)
@@ -155,6 +158,19 @@ func _restart() -> void:
 
 func _run_end_text() -> String:
 	return "RUN OVER  score=%d  best=%d" % [_run.run_score, _run.high_score]
+
+
+# Monetization/leaderboard UI hooks -> Services (no-op stubs by default; live wiring is post-run).
+func _on_revive() -> void:
+	Services.ad.show_rewarded("revive")
+
+
+func _on_remove_ads() -> void:
+	Services.iap.purchase_remove_ads()
+
+
+func _on_leaderboard() -> void:
+	Services.leaderboard.submit_score(_run.run_score if _run != null else 0)
 
 
 func _outcome_text(outcome: int, score: int) -> String:
@@ -437,6 +453,16 @@ func _run_scripted() -> void:
 	print("CUE_LEAK=", Audio.last_id)
 	_on_outcome(GameState.Outcome.BOMB, 0)
 	print("CUE_BOMB=", Audio.last_id)
+
+	# --- E7b: monetization/leaderboard UI hooks -> Services stubs (inert) ---
+	_on_revive()
+	print("HOOK_REVIVE=", Services.ad.last_call)
+	_on_remove_ads()
+	print("HOOK_REMOVEADS=", Services.iap.last_call)
+	_run = Run.new(1)
+	_run.on_clear(9)  # run_score = 9
+	_on_leaderboard()
+	print("HOOK_LB=", Services.leaderboard.last_call)
 
 
 # Helpers for the S3.2 scripted flow checks.

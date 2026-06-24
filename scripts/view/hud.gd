@@ -5,6 +5,9 @@ extends CanvasLayer
 signal rotate_pressed
 signal go_pressed
 signal restart_pressed
+signal revive_pressed
+signal remove_ads_pressed
+signal leaderboard_pressed
 
 const _PIECE_NAME := {0: "-", 1: "I", 2: "L", 3: "+"}  # NONE/STRAIGHT/BEND/CROSS glyphs
 
@@ -48,6 +51,17 @@ func _ready() -> void:
 	restart_btn.position = Vector2(560, 136)
 	restart_btn.pressed.connect(func() -> void: restart_pressed.emit())
 	add_child(restart_btn)
+	_mk_service_btn("Revive", Vector2(560, 176), func() -> void: revive_pressed.emit())
+	_mk_service_btn("Remove Ads", Vector2(560, 216), func() -> void: remove_ads_pressed.emit())
+	_mk_service_btn("Leaderboard", Vector2(560, 256), func() -> void: leaderboard_pressed.emit())
+
+
+func _mk_service_btn(text: String, pos: Vector2, cb: Callable) -> void:
+	var b := Button.new()
+	b.text = text
+	b.position = pos
+	b.pressed.connect(cb)
+	add_child(b)
 
 
 func _on_settings() -> void:
