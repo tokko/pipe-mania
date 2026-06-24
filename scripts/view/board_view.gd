@@ -44,3 +44,38 @@ func cell_size() -> int:
 
 func tile_count() -> int:
 	return _tiles.size()
+
+
+# Tap -> board cell -> cell_tapped signal (the controller, Main, does the actual place()).
+func _unhandled_input(event: InputEvent) -> void:
+	var pos := Vector2.ZERO
+	if event is InputEventScreenTouch and event.pressed:
+		pos = event.position
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		pos = event.position
+	else:
+		return
+	var cell: Vector2i = layout.pixel_to_cell(to_local(pos))
+	if gs.board.in_bounds(cell.x, cell.y):
+		_flash(cell.x, cell.y)  # touch-down highlight
+		cell_tapped.emit(cell.x, cell.y)
+
+
+# Re-render from the model and notify listeners (HUD binds in S2.3).
+func notify_changed() -> void:
+	refresh()
+	state_changed.emit()
+
+
+# Invalid-tap feedback: a quick horizontal shake (haptic buzz is the controller's job).
+func shake() -> void:
+	var base := position
+	var tw := create_tween()
+	tw.tween_property(self, "position", base + Vector2(8, 0), 0.04)
+	tw.tween_property(self, "position", base, 0.08)
+
+
+func _flash(x: int, y: int) -> void:
+	var w: int = gs.board.width
+	_tiles[y * w + x].refresh(
+		gs.board.cell_at(x, y), gs.pipe_at(x, y), gs.pipe_rot_at(x, y), gs.is_wet(x, y), true)

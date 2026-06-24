@@ -13,9 +13,9 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - **Process note:** reviewer agents time out on broad scope; use tight, output-bounded reviews.
 
 ## Next session
-- **S2.2** — tap-to-place: `BoardView._unhandled_input` → `grid_layout.pixel_to_cell` → emit
-  `cell_tapped` → `GameState.place(x,y,rotation)` → emit `state_changed` + `refresh()`; valid-cell
-  highlight on touch-down; invalid tap (place() false) → shake + buzz, using public `phase`/`cell_at`.
+- **S2.3** — HUD (`hud.gd`/`hud.tscn`, a CanvasLayer): build countdown label, 5-piece preview
+  (`gs.preview(5)`), live route-length readout (`gs.dry_route_length()`); refresh on
+  `BoardView.state_changed`. Wire into `main.gd` (`_start_game` + scripted check).
 
 ## History
 - E0 — Godot 4.6 project + GUT gate (`667a0e5`).
@@ -31,3 +31,4 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - S1.7 — `difficulty.config(n)` pinned ramp table; exact n=0/5/15 + monotonicity + caps.
 - E2 plan — rendering epic plan, council-clean (real ≥44dp control, state_changed contract, headless integration).
 - S2.1 — `grid_layout` (headless: round-trip + floor control) + `tile`/`board_view` (pooled render) + `main` scripted entry + `main.tscn`; integration green.
+- S2.2 — tap-to-place: `BoardView._unhandled_input`→`cell_tapped`; `Main.place_at` (controller mutates model)→`notify_changed`/shake+buzz; touch-down highlight. Integration: PLACE_OK/BAD + STATE_CHANGED_COUNT=1.
