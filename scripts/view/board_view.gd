@@ -38,7 +38,8 @@ func refresh() -> void:
 	for y in gs.board.height:
 		for x in w:
 			_tiles[y * w + x].refresh(
-				gs.board.cell_at(x, y), gs.pipe_at(x, y), gs.pipe_rot_at(x, y), gs.is_wet(x, y), false)
+				gs.board.cell_at(x, y), gs.pipe_at(x, y), gs.pipe_rot_at(x, y), gs.is_wet(x, y),
+				false, gs.is_near_bomb(x, y))
 
 
 func cell_size() -> int:

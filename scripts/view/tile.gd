@@ -12,15 +12,30 @@ var piece: int = PT.Piece.NONE
 var rot: int = 0
 var wet: bool = false
 var highlight: bool = false
+var near_bomb: bool = false
 
 
-func refresh(cell_type_: int, piece_: int, rot_: int, wet_: bool, highlight_: bool) -> void:
+func refresh(cell_type_: int, piece_: int, rot_: int, wet_: bool, highlight_: bool,
+		near_bomb_: bool = false) -> void:
 	cell_type = cell_type_
 	piece = piece_
 	rot = rot_
 	wet = wet_
 	highlight = highlight_
+	near_bomb = near_bomb_
 	queue_redraw()
+
+
+## Distinct SHAPE-marker id per cell type so types are readable WITHOUT hue (colorblind-safe):
+## 0 = none (OPEN), 1 = X/hatch (BLOCKED), 2 = spiky ring (BOMB). _draw renders the glyph.
+static func cell_marker(ct: int) -> int:
+	match ct:
+		PT.Cell.BOMB:
+			return 2
+		PT.Cell.BLOCKED:
+			return 1
+		_:
+			return 0
 
 
 func _draw() -> void:
@@ -34,6 +49,9 @@ func _draw() -> void:
 	draw_rect(rect, bg)
 	if highlight:
 		draw_rect(rect, Color(1, 1, 1, 0.25))
+	if near_bomb:  # proximity warning outline (orange), readable independent of hue via its border
+		draw_rect(rect, Color(1.0, 0.75, 0.0), false, maxf(2.0, size * 0.06))
+	_draw_marker(rect)
 	if piece != PT.Piece.NONE:
 		var col := Color(0.20, 0.55, 0.90) if wet else Color(0.55, 0.60, 0.65)
 		var c := Vector2(size, size) * 0.5
@@ -42,6 +60,25 @@ func _draw() -> void:
 			for d in _DIRS:
 				if ch & d:
 					draw_line(c, c + _edge_off(d) * size * 0.5, col, w)
+
+
+# Colorblind-safe SHAPE per cell type (X for blocked, spiky ring for bomb) so the type reads
+# without relying on the background hue.
+func _draw_marker(rect: Rect2) -> void:
+	var c := rect.position + rect.size * 0.5
+	var r := size * 0.22
+	match cell_marker(cell_type):
+		1:  # BLOCKED: an X
+			var w := maxf(2.0, size * 0.08)
+			draw_line(c + Vector2(-r, -r), c + Vector2(r, r), Color(0.85, 0.85, 0.88), w)
+			draw_line(c + Vector2(-r, r), c + Vector2(r, -r), Color(0.85, 0.85, 0.88), w)
+		2:  # BOMB: a spiky ring
+			var w := maxf(2.0, size * 0.08)
+			draw_arc(c, r, 0.0, TAU, 16, Color(1, 0.9, 0.2), w)
+			for i in 8:
+				var a := TAU * i / 8.0
+				var dir := Vector2(cos(a), sin(a))
+				draw_line(c + dir * r, c + dir * r * 1.5, Color(1, 0.9, 0.2), maxf(1.5, size * 0.05))
 
 
 func _edge_off(d: int) -> Vector2:

@@ -82,6 +82,17 @@ func score_route() -> Array:
 	return cells
 
 
+## True if (x,y) is within MANHATTAN distance 2 of any bomb — the proximity WARNING radius (the
+## bomb FAIL is orthogonal-adjacency = distance 1; the glow is an earlier heads-up). Drives the
+## Tile warning glow. Manhattan to match the orthogonal bomb mechanic.
+func is_near_bomb(x: int, y: int) -> bool:
+	for by in board.height:
+		for bx in board.width:
+			if board.cell_at(bx, by) == PT.Cell.BOMB and absi(x - bx) + absi(y - by) <= 2:
+				return true
+	return false
+
+
 func _node_at(pos: Vector2i, dir: int) -> Vector3i:
 	if not board.in_bounds(pos.x, pos.y):
 		return _NO_NODE
