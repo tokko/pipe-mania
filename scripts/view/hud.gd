@@ -2,6 +2,8 @@ extends CanvasLayer
 ## Build-phase HUD: countdown, next-5 preview, live route-length readout. Observes the
 ## model via BoardView.state_changed (re-reads on change; never polls the model per frame).
 
+signal rotate_pressed
+
 const _PIECE_NAME := {0: "-", 1: "I", 2: "L", 3: "+"}  # NONE/STRAIGHT/BEND/CROSS glyphs
 
 var _gs
@@ -11,12 +13,28 @@ var _preview: Array = []
 var _countdown_label: Label
 var _route_label: Label
 var _preview_label: Label
+var _settings_btn: Button
 
 
 func _ready() -> void:
 	_countdown_label = _mk_label(Vector2(16, 16))
 	_route_label = _mk_label(Vector2(16, 48))
 	_preview_label = _mk_label(Vector2(16, 80))
+	_settings_btn = Button.new()
+	_settings_btn.text = "Rot: OFF"
+	_settings_btn.position = Vector2(560, 16)
+	_settings_btn.pressed.connect(_on_settings)
+	add_child(_settings_btn)
+	var rot_btn := Button.new()
+	rot_btn.text = "Rotate"
+	rot_btn.position = Vector2(560, 56)
+	rot_btn.pressed.connect(func() -> void: rotate_pressed.emit())
+	add_child(rot_btn)
+
+
+func _on_settings() -> void:
+	Settings.toggle_rotation()
+	_settings_btn.text = "Rot: " + ("ON" if Settings.rotation_enabled else "OFF")
 
 
 func _mk_label(pos: Vector2) -> Label:

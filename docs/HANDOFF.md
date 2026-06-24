@@ -5,17 +5,16 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 
 ## Current state
 - Gate: `tools/run-gate.ps1` (headless GUT). Green — 75 tests, 74 pass + 1 quarantined control.
-- E0 ✅ · **E1 (core-model) CLOSED — `proof-passing` (1/8).** · **E2 (rendering) in progress** (S2.1 done).
-- Model in `scripts/model/` (pure, Node-free). **View in `scripts/view/`** (`grid_layout`, `tile`, `board_view`) + `scripts/main.gd` + `scenes/main.tscn` (run/main_scene).
-- View observes the model; `BoardView` declares `cell_tapped` + `state_changed`. `main.gd` scripted mode (env `PIPE_TEST`) is the headless [integration] entry.
-- **Integration check (S2.1):** `PIPE_TEST=1` headless run → TILES=5, CELL_SIZE=144, DRY_ROUTE=5, SAMPLE_20=1.
+- E0 ✅ · **E1 (core-model) CLOSED — `proof-passing` (1/8).** · **E2 (rendering): all 4 sprints built → entering epic-close.**
+- Model `scripts/model/` (pure, Node-free). View `scripts/view/` (`grid_layout`,`tile`,`board_view`,`hud`) + `scripts/main.gd` (controller) + `scenes/main.tscn`. Autoloads: `Config`, `Settings`.
+- Playable build loop works: render → tap-to-place (invalid=shake) → HUD (countdown/preview/route) → rotation toggle.
+- **[integration] entry = `main.gd` scripted mode** (env `PIPE_TEST`), run HEADLESS via console binary. Latest: TILES=5, ROUTE 0→3, PLACE_OK/BAD, ROT_OFF=0/ROT_ON=1.
+- **GOTCHA:** don't name a Node2D method `rotate()` (collides with native; warnings-as-errors → script fails to load → headless hangs because PIPE_TEST quit() never runs). Renamed → `cycle_rotation()`.
 - **FINDING (human decision):** shortcut-collapse needs t-junctions (deferred) — MVP score = single-path length.
-- **Process note:** reviewer agents time out on broad scope; use tight, output-bounded reviews.
 
 ## Next session
-- **S2.4** — in-run settings: a small `Settings` autoload (rotation toggle, audio, haptics flags)
-  + a settings icon/panel. Wire `_rotation` in `main.gd` to read `Settings.rotation_enabled`
-  (default off). Last E2 sprint → then epic-close (E2 proof = the scripted-Main integration).
+- **E2 epic-close** (STEP 6): reflection → harden → regression → proof → retro. E2 proof = the
+  scripted-Main headless integration asserting render/tap/HUD/rotation; on pass → section 2/8 `proof-passing`.
 
 ## History
 - E0 — Godot 4.6 project + GUT gate (`667a0e5`).
@@ -33,3 +32,4 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - S2.1 — `grid_layout` (headless: round-trip + floor control) + `tile`/`board_view` (pooled render) + `main` scripted entry + `main.tscn`; integration green.
 - S2.2 — tap-to-place: `BoardView._unhandled_input`→`cell_tapped`; `Main.place_at` (controller mutates model)→`notify_changed`/shake+buzz; touch-down highlight. Integration: PLACE_OK/BAD + STATE_CHANGED_COUNT=1.
 - S2.3 — `hud.gd` (CanvasLayer): countdown + 5-preview + route readout; binds `BoardView.state_changed`; Main countdown tick. Integration: COUNTDOWN/PREVIEW_LEN=5/ROUTE 0→3.
+- S2.4 — `Settings` autoload (rotation/audio/haptics) + HUD toggle + Rotate buttons; `Main._effective_rotation` gates rotation. Integration: ROT_OFF=0/ROT_ON=1. (Renamed rotate→cycle_rotation.)

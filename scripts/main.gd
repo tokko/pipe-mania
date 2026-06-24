@@ -21,7 +21,7 @@ const HUD_TOP := 160
 var _gs
 var _bv
 var _hud
-var _rotation := 0  # S2.4 wires the rotation toggle; default = fixed spawn orientation
+var _current_rotation := 0  # player-chosen orientation; used only when Settings.rotation_enabled
 var _build_remaining := 0.0  # build-phase countdown (E3 wires GO at zero)
 
 
@@ -44,6 +44,7 @@ func _start_game() -> void:
 	_hud = HUD.new()
 	add_child(_hud)
 	_hud.bind(_bv)
+	_hud.rotate_pressed.connect(cycle_rotation)
 	_build_remaining = float(c.build_seconds)
 	_hud.set_countdown(c.build_seconds)
 
@@ -60,12 +61,23 @@ func _on_cell_tapped(x: int, y: int) -> void:
 
 # Controller: mutate the model (the view never does), then refresh or give invalid feedback.
 func place_at(x: int, y: int) -> bool:
-	if _gs.place(x, y, _rotation):
+	if _gs.place(x, y, _effective_rotation()):
 		_bv.notify_changed()
 		return true
 	_bv.shake()
-	Input.vibrate_handheld(40)
+	if Settings.haptics_enabled:
+		Input.vibrate_handheld(40)
 	return false
+
+
+func _effective_rotation() -> int:
+	return _current_rotation if Settings.rotation_enabled else 0
+
+
+# Cycle the player-chosen orientation (only meaningful when rotation is enabled).
+# NB: NOT named rotate() — that collides with Node2D.rotate(float).
+func cycle_rotation() -> void:
+	_current_rotation = (_current_rotation + 1) & 3
 
 
 func _run_scripted() -> void:
@@ -120,3 +132,21 @@ func _run_scripted() -> void:
 		gs3.set_pipe(x, 0, PT.Piece.STRAIGHT, 1)
 	bv3.notify_changed()  # state_changed -> HUD refresh
 	print("ROUTE_AFTER=", hud.route_value())
+
+	# --- S2.4: rotation toggle gates the placement rotation ---
+	var b4 = Board.new(3, 3)
+	b4.set_inlet(Vector2i(0, 1), PT.W)
+	b4.set_outlet(Vector2i(2, 1), PT.E)
+	_gs = GameState.new(b4)
+	_bv = BoardView.new()
+	add_child(_bv)
+	_bv.setup(_gs, VIEW, MIN_CELL, 0)
+	_current_rotation = 1
+	Settings.rotation_enabled = false
+	place_at(0, 0)  # rotation off -> stored rot 0
+	print("ROT_OFF=", _gs.pipe_rot_at(0, 0))
+	Settings.rotation_enabled = true
+	place_at(1, 0)  # rotation on -> stored rot = _current_rotation
+	print("ROT_ON=", _gs.pipe_rot_at(1, 0))
+	print("AUDIO=", Settings.audio_enabled, " HAPTICS=", Settings.haptics_enabled)
+	Settings.rotation_enabled = false  # reset
