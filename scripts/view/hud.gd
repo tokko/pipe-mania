@@ -3,6 +3,7 @@ extends CanvasLayer
 ## model via BoardView.state_changed (re-reads on change; never polls the model per frame).
 
 signal rotate_pressed
+signal go_pressed
 
 const _PIECE_NAME := {0: "-", 1: "I", 2: "L", 3: "+"}  # NONE/STRAIGHT/BEND/CROSS glyphs
 
@@ -30,6 +31,11 @@ func _ready() -> void:
 	rot_btn.position = Vector2(560, 56)
 	rot_btn.pressed.connect(func() -> void: rotate_pressed.emit())
 	add_child(rot_btn)
+	var go_btn := Button.new()
+	go_btn.text = "GO"
+	go_btn.position = Vector2(560, 96)
+	go_btn.pressed.connect(func() -> void: go_pressed.emit())
+	add_child(go_btn)
 
 
 func _on_settings() -> void:

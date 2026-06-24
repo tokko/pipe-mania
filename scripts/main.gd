@@ -45,6 +45,7 @@ func _start_game() -> void:
 	add_child(_hud)
 	_hud.bind(_bv)
 	_hud.rotate_pressed.connect(cycle_rotation)
+	_hud.go_pressed.connect(_start_flow)
 	_build_remaining = float(c.build_seconds)
 	_hud.set_countdown(c.build_seconds)
 
@@ -53,6 +54,16 @@ func _process(delta: float) -> void:
 	if _build_remaining > 0.0:
 		_build_remaining -= delta
 		_hud.set_countdown(maxi(0, ceili(_build_remaining)))
+		if _build_remaining <= 0.0:
+			_start_flow()  # build-countdown expiry (single block; E2 council DIRECTIVE)
+
+
+# Lock the build and begin the verify flow (GO button or countdown expiry). Guarded so
+# button-then-expiry / re-firing can't double-start. FlowAnimator wiring lands in S3.2.
+func _start_flow() -> void:
+	if _gs.phase == GameState.Phase.FLOW:
+		return
+	_gs.go()
 
 
 func _on_cell_tapped(x: int, y: int) -> void:
@@ -169,3 +180,32 @@ func _run_scripted() -> void:
 	ev.position = bv5.layout.cell_to_pixel(target.x, target.y) + Vector2(bv5.cell_size(), bv5.cell_size()) * 0.5
 	bv5._unhandled_input(ev)
 	print("TAP_CELL=", tapped[0])
+
+	# --- S3.1: GO seam -> FLOW; placement disabled in FLOW; double-start guarded ---
+	var b6 = Board.new(3, 3)
+	b6.set_inlet(Vector2i(0, 1), PT.W)
+	b6.set_outlet(Vector2i(2, 1), PT.E)
+	_gs = GameState.new(b6)
+	_bv = BoardView.new()
+	add_child(_bv)
+	_bv.setup(_gs, VIEW, MIN_CELL, 0)
+	print("PHASE_BEFORE=", _gs.phase)
+	_start_flow()
+	print("PHASE_AFTER_GO=", _gs.phase)
+	print("PLACE_IN_FLOW=", place_at(1, 1))  # rejected during FLOW
+	_start_flow()  # double-call must be a no-op (guard)
+	print("PHASE_DOUBLE=", _gs.phase)
+	# countdown-expiry path drives _start_flow from _process
+	var b7 = Board.new(3, 3)
+	b7.set_inlet(Vector2i(0, 1), PT.W)
+	b7.set_outlet(Vector2i(2, 1), PT.E)
+	_gs = GameState.new(b7)
+	_bv = BoardView.new()
+	add_child(_bv)
+	_bv.setup(_gs, VIEW, MIN_CELL, 0)
+	_hud = HUD.new()
+	add_child(_hud)
+	_hud.bind(_bv)
+	_build_remaining = 0.05
+	_process(0.1)  # crosses 0 -> _start_flow
+	print("PHASE_AFTER_EXPIRY=", _gs.phase)

@@ -64,12 +64,22 @@ const _NO_NODE := Vector3i(-1, -1, -1)
 ## BFS finds the shortest route, so it collapses to the short side of any shortcut
 ## (shortcuts need branching / t-junctions — post-MVP — but the rule is already correct).
 func score() -> int:
-	return _shortest_route(true)
+	return _shortest_path(true).size()
 
 
 ## Same over PLACED (dry) pipe — feeds E2's live build readout. 0 if not yet connected.
 func dry_route_length() -> int:
-	return _shortest_route(false)
+	return _shortest_path(false).size()
+
+
+## The cells on the shortest WET inlet->outlet route (for the scored-route highlight); [] if
+## unconnected. On MVP single-channel routes size() == score(); a cell could repeat only if a
+## route re-entered it on a second channel (needs branching / t-junctions, deferred).
+func score_route() -> Array:
+	var cells: Array = []
+	for node in _shortest_path(true):
+		cells.append(Vector2i(node.x, node.y))
+	return cells
 
 
 func _node_at(pos: Vector2i, dir: int) -> Vector3i:
@@ -82,31 +92,39 @@ func _node_at(pos: Vector2i, dir: int) -> Vector3i:
 	return _NO_NODE if ch < 0 else Vector3i(pos.x, pos.y, ch)
 
 
-# BFS node-count of the shortest inlet->outlet route; wet_only restricts to wet nodes.
-func _shortest_route(wet_only: bool) -> int:
+# BFS shortest inlet->outlet path as a node list [start..goal]; [] if unreachable.
+# wet_only restricts to wet nodes. score()/score_route() derive from this.
+func _shortest_path(wet_only: bool) -> Array:
 	var start := _node_at(board.inlet_pos, board.inlet_dir)
 	var goal := _node_at(board.outlet_pos, board.outlet_dir)
 	if start == _NO_NODE or goal == _NO_NODE:
-		return 0
+		return []
 	if wet_only and not _wet_nodes.has(start):
-		return 0
-	var dist := {start: 1}
-	var bfs: Array = [start]  # frontier queue (not the piece `queue` instance var)
+		return []
+	var prev := {start: start}  # node -> predecessor; start maps to itself (sentinel)
+	var bfs: Array = [start]
 	var head := 0
 	while head < bfs.size():
 		var node: Vector3i = bfs[head]
 		head += 1
 		if node == goal:
-			return dist[node]
+			var path: Array = []
+			var cur: Vector3i = goal
+			while cur != prev[cur]:
+				path.append(cur)
+				cur = prev[cur]
+			path.append(start)
+			path.reverse()
+			return path
 		for nb in CG.neighbors(self, node.x, node.y, node.z):
 			var key := Vector3i(nb[0], nb[1], nb[2])
 			if wet_only and not _wet_nodes.has(key):
 				continue
-			if dist.has(key):
+			if prev.has(key):
 				continue
-			dist[key] = dist[node] + 1
+			prev[key] = node
 			bfs.append(key)
-	return 0
+	return []
 
 
 ## The outlet pipe's channel that owns the outlet drain edge is wet.
@@ -137,13 +155,15 @@ func is_bombed() -> bool:
 ## The seed ring is checked first (before any step) — intentional: if the inlet cell
 ## is itself bomb-adjacent or already complete, that resolves immediately.
 func resolve() -> int:
-	var o := _outcome_now()
+	var o := outcome_now()
 	while o == Outcome.NONE and step():
-		o = _outcome_now()
+		o = outcome_now()
 	return o
 
 
-func _outcome_now() -> int:
+## Terminal outcome at the CURRENT wet state (CLEARED > BOMB > LEAK), or NONE if still
+## resolvable. Public so the FlowAnimator can poll it each tick.
+func outcome_now() -> int:
 	if is_cleared():
 		return Outcome.CLEARED
 	if is_bombed():

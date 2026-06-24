@@ -76,6 +76,31 @@ func test_cross_corner_control_bend_connects() -> void:  # control
 	assert_eq(gs.score(), 3, "a bend turns the corner -> 3-cell route")
 
 
+func test_score_route_cells_match_line() -> void:  # S3.1
+	var b = Board.new(8, 1)
+	b.set_inlet(Vector2i(0, 0), PT.W)
+	b.set_outlet(Vector2i(7, 0), PT.E)
+	var gs = GameState.new(b)
+	for x in 8:
+		gs.set_pipe(x, 0, PT.Piece.STRAIGHT, 1)
+	_resolve(gs)
+	var route = gs.score_route()
+	assert_eq(route.size(), 8, "route has 8 cells")
+	assert_eq(route.size(), gs.score(), "route size == score on MVP single-channel")
+	assert_eq(route[0], Vector2i(0, 0))
+	assert_eq(route[7], Vector2i(7, 0))
+
+
+func test_score_route_empty_when_unconnected() -> void:  # S3.1
+	var b = Board.new(3, 1)
+	b.set_inlet(Vector2i(0, 0), PT.W)
+	b.set_outlet(Vector2i(2, 0), PT.E)
+	var gs = GameState.new(b)
+	gs.set_pipe(0, 0, PT.Piece.STRAIGHT, 1)  # dangling
+	_resolve(gs)
+	assert_eq(gs.score_route(), [], "unconnected -> empty route")
+
+
 func test_dry_route_length_before_flow() -> void:
 	var b = Board.new(5, 1)
 	b.set_inlet(Vector2i(0, 0), PT.W)

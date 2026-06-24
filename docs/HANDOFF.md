@@ -13,10 +13,10 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - **FINDING (human decision):** shortcut-collapse needs t-junctions (deferred) — MVP score = single-path length.
 
 ## Next session
-- **Plan E3 (flow-outcomes)** — the verify phase: GO/countdown-expiry → water flows (FlowAnimator
-  drives `GameState.step()`); board resolves CLEARED (geyser + scored-route highlight) / leak (splash) /
-  bomb (shake) on screen. Wire the build-countdown→GO seam in main `_process` (single block). Proof =
-  scripted-Main asserting a fixture clears/leaks/bombs with the right outcome.
+- **S3.2** — `FlowAnimator` (`scripts/view/flow_animator.gd`, Node): Timer drives `gs.step()` +
+  `BoardView.refresh()` each tick; checks `gs.outcome_now()`; on terminal/settle stops Timer +
+  emits `outcome_resolved(outcome, score)`. `resolve_immediately()` (stops Timer, `gs.resolve()`,
+  same emit) for the headless gate. Wire `_start_flow()` to start it.
 
 ## History
 - E0 — Godot 4.6 project + GUT gate (`667a0e5`).
@@ -37,3 +37,5 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - S2.4 — `Settings` autoload (rotation/audio/haptics) + HUD toggle + Rotate buttons; `Main._effective_rotation` gates rotation. Integration: ROT_OFF=0/ROT_ON=1. (Renamed rotate→cycle_rotation.)
 - S2.5 — E2 reflection remediation: absolute tap mapping + hud double-connect guard + input-path test (TAP_CELL=(1,2)).
 - E2 close — harden (Tile _DIRS const), regression green, PROOF PASS → rendering-build-input `proof-passing` (2/8).
+- E3 plan — flow-outcomes, council-clean (start_flow guard, resolve_immediately stops Timer, animator-loop test).
+- S3.1 — model `outcome_now()` public + `score_route()` (BFS path) + GO seam (HUD GO button + countdown-expiry, phase-guarded; placement disabled in FLOW). gate 79; integration PHASE 0→1.

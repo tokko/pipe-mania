@@ -65,6 +65,30 @@ func test_no_bomb_control_clears() -> void:  # control
 	assert_eq(gs.resolve(), GameState.Outcome.CLEARED, "same board without a bomb clears")
 
 
+func test_outcome_now_public_none_then_clear() -> void:  # S3.1
+	var gs = _line(3)
+	gs.go()
+	assert_eq(gs.outcome_now(), GameState.Outcome.NONE, "seed not yet at outlet")
+	gs.resolve()
+	assert_eq(gs.outcome_now(), GameState.Outcome.CLEARED)
+
+
+func test_animator_loop_matches_resolve() -> void:  # S3.1 — closes the council gate-gap
+	# Manual go() + step/outcome_now loop (mirrors FlowAnimator without a Timer) must reach
+	# the SAME outcome as a fresh resolve() on the same fixture.
+	var gs1 = _line(3)
+	gs1.go()
+	var o := gs1.outcome_now()
+	var n := 0
+	while o == GameState.Outcome.NONE and gs1.step() and n < 50:
+		o = gs1.outcome_now()
+		n += 1
+	var gs2 = _line(3)
+	gs2.go()
+	assert_eq(o, gs2.resolve(), "manual step/outcome_now loop == resolve()")
+	assert_eq(o, GameState.Outcome.CLEARED)
+
+
 func test_outlet_beats_bomb_same_step() -> void:  # FX_OUTLET_VS_BOMB
 	var gs = _row(2)  # bomb at (2,0), adjacent ONLY to the outlet (2,1)
 	gs.go()
