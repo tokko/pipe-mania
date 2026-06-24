@@ -19,6 +19,7 @@ func setup(game_state, viewport: Vector2i, min_cell: int, play_top: int = 0) -> 
 	position = Vector2.ZERO  # clean base (a shake tween mid-reset must not leave an offset)
 	gs = game_state
 	layout = GridLayout.new(gs.board.width, gs.board.height, viewport, min_cell, play_top)
+	_highlighted.clear()  # stale scored-route cells must not survive a board reload (E4)
 	for t in _tiles:
 		t.free()  # synchronous: re-setup (E4 board reload) must not leave queued-but-live tiles
 	_tiles.clear()
@@ -84,12 +85,12 @@ func highlighted_cells() -> Array:
 	return _highlighted
 
 
-# Invalid-tap feedback: a quick horizontal shake (haptic buzz is the controller's job).
+# Invalid-tap / bomb feedback: a quick horizontal shake (haptic buzz is the controller's job).
 func shake() -> void:
-	var base := position
+	position = Vector2.ZERO  # anchor: an overlapping shake must not stack onto a mid-shake offset
 	var tw := create_tween()
-	tw.tween_property(self, "position", base + Vector2(8, 0), 0.04)
-	tw.tween_property(self, "position", base, 0.08)
+	tw.tween_property(self, "position", Vector2(8, 0), 0.04)
+	tw.tween_property(self, "position", Vector2.ZERO, 0.08)
 
 
 func _flash(x: int, y: int) -> void:
