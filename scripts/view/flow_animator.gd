@@ -52,6 +52,17 @@ func _finish(outcome: int) -> void:
 	outcome_resolved.emit(outcome, _gs.score())
 
 
+# Stop the flow Timer without emitting (e.g. a board reload / Restart mid-animation, so a stray
+# tick can't refresh() a freed BoardView or resolve against the new board).
+func stop() -> void:
+	if _timer != null:
+		_timer.stop()
+
+
+func is_running() -> bool:
+	return _timer != null and not _timer.is_stopped()
+
+
 # Synchronous resolution for the headless gate. Stops the Timer first so it and resolve() never
 # drive the same frontier concurrently (council RISK). Reaches the SAME outcome as the tick loop.
 func resolve_immediately() -> void:

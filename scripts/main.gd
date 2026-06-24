@@ -49,6 +49,8 @@ func _start_game() -> void:
 # The single teardown-safe board-mount path (used by _start_game, board-advance, restart).
 # Frees the old view/HUD (no ghost nodes / duplicate signals) and resets the build countdown.
 func _mount_board(gs) -> void:
+	if _animator != null:
+		_animator.stop()  # a reload/Restart mid-flow must not let a stray tick hit the freed _bv
 	if _bv != null:
 		_bv.queue_free()
 	if _hud != null:
@@ -351,6 +353,17 @@ func _run_scripted() -> void:
 	_restart()
 	print("AFTER_RESTART INDEX=", _run.board_index, " RUN=", _run.run_score, " HIGH=", _run.high_score)
 	print("HUD_SCORE_AFTER_RESTART=", _hud.score_text())
+
+	# --- S4.4: _mount_board stops the flow animator (Restart/advance mid-flow safety) ---
+	_run = Run.new(11)
+	_gs = _flow_line(8)  # connected -> flow runs multiple steps (outcome NONE after go())
+	_bv = BoardView.new()
+	add_child(_bv)
+	_bv.setup(_gs, VIEW, MIN_CELL, 0)
+	_start_flow()  # go() + animator.start() -> Timer running (not yet resolved)
+	print("ANIM_RUNNING_DURING_FLOW=", _animator.is_running())
+	_mount_board(_run.next_board())  # simulates Restart/advance mid-animation
+	print("ANIM_RUNNING_AFTER_MOUNT=", _animator.is_running())
 
 
 # Helpers for the S3.2 scripted flow checks.
