@@ -21,11 +21,11 @@ const VIEW := Vector2i(720, 1280)
 const MIN_CELL := 44
 const HUD_TOP := 160
 
-var _gs
-var _bv
-var _hud
-var _run
-var _animator
+var _gs: GameState
+var _bv: BoardView
+var _hud: HUD
+var _run: Run
+var _animator: FlowAnimator
 var _last_outcome := -1  # last resolved Outcome (for the headless gate / S3.3 display)
 var _last_score := 0
 var _current_rotation := 0  # player-chosen orientation; used only when Settings.rotation_enabled
@@ -66,12 +66,10 @@ func _mount_board(gs) -> void:
 	_hud.rotate_pressed.connect(cycle_rotation)
 	_hud.go_pressed.connect(_start_flow)
 	_hud.restart_pressed.connect(_restart)
-	var idx: int = _run.board_index if _run != null else 0
-	var c = Difficulty.config(idx)
+	var c = Difficulty.config(_run.board_index)  # _mount_board is only ever called after _run is set
 	_build_remaining = float(c.build_seconds)
 	_hud.set_countdown(c.build_seconds)
-	if _run != null:
-		_hud.set_scores(_run.run_score, _run.high_score)
+	_hud.set_scores(_run.run_score, _run.high_score)
 
 
 func _process(delta: float) -> void:
