@@ -4,18 +4,20 @@ Autonomous `/crunch` build. Resume pointer: `.auto-sprint-board/crunch-state.jso
 Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/core-model.md`.
 
 ## Current state
-- Gate: `tools/run-gate.ps1` (headless GUT). Green — 85 tests, 84 pass + 1 quarantined control.
-- **E0 ✅ · E1 ✅ · E2 ✅ · E3 ✅ — 3/8 sections `proof-passing`. E4 (endless-run) in progress: S4.1 (Run model) built; S4.2 SaveStore + S4.3 wiring remain.**
+- Gate: `tools/run-gate.ps1` (headless GUT). Green — 89 tests, 88 pass + 1 quarantined control.
+- **E0 ✅ · E1 ✅ · E2 ✅ · E3 ✅ — 3/8 sections `proof-passing`. E4 (endless-run) in progress: S4.1 (Run) + S4.2 (SaveStore) built; S4.3 wiring remains.**
 - Model `scripts/model/` (pure, Node-free). View `scripts/view/` (`grid_layout`,`tile`,`board_view`,`flow_animator`,`hud`) + `scripts/main.gd` (controller) + `scenes/main.tscn`. Autoloads: `Config`, `Settings`.
 - Playable build-phase loop + verify flow: render → tap-to-place → HUD → GO/expiry → `FlowAnimator` runs water → resolves CLEARED/LEAK/BOMB (display on screen = S3.3).
 - **[integration] entry = `main.gd` scripted mode** (env `PIPE_TEST`), run HEADLESS via console binary, asserts stdout markers.
-- **GOTCHAS:** (1) never name a Node method like a native (`rotate()`→hang); (2) view code: explicit `var x: T =` when assigning from untyped `gs`/`layout` calls; (3) input mapping uses absolute `event.position` vs `layout.origin` (not `to_local`).
+- **GOTCHAS:** (1) never name a Node method like a native (`rotate()`→hang); (2) view code: explicit `var x: T =` when assigning from untyped `gs`/`layout` calls; (3) input mapping uses absolute `event.position` vs `layout.origin` (not `to_local`); (4) `JSON.parse_string` on raw garbage logs an ERROR to stderr (still returns null) → in tests use VALID-but-wrong-shape JSON for negative controls, else the PS gate's `2>&1` escalates it to NativeCommandError; (5) `git add` a non-existent path (e.g. a `.uid`) aborts the whole add — list only real paths.
 - **FINDING (human decision):** shortcut-collapse needs t-junctions (deferred) — MVP score = single-path length.
 
 ## Next session
-- **S4.2** — `SaveStore` (`scripts/save_store.gd`, RefCounted): high score as JSON in
-  `user://highscore.json`; `load_high()->int` (0 if absent/corrupt), `save_high(int)`. GUT
-  round-trip (FileAccess works headless). Then S4.3 wires Main↔Run+SaveStore via `_mount_board()`.
+- **S4.3** — wire Main ↔ Run + SaveStore (last E4 sprint): `_start_game` → `Run.new(seed)` +
+  `SaveStore.load_high()` + `_mount_board()`; `_on_outcome` CLEARED → `Run.on_clear` + `_mount_board(next_board)`;
+  fail → `Run.on_fail` + `SaveStore.save_high` + run-end label + restart; HUD shows run/high score.
+  `_mount_board()` frees old `_bv`/`_hud` + resets countdown; `FlowAnimator.setup()` stops live Timer.
+  Scripted proof: 3-board run RUN_SCORE Σ + board dims==config(index) + fail→RUN_OVER + restart resets.
 
 ## History
 - E0 — Godot 4.6 project + GUT gate (`667a0e5`).
@@ -43,3 +45,4 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - E3 close — reflection (godot-reviewer; 2 false-positives rejected), harden (BoardView `_highlighted.clear()` + shake anchor), regression green (E1+E2 unchanged), PROOF PASS → flow-outcomes `proof-passing` (3/8).
 - E4 plan — endless-run, council-clean (`_mount_board` teardown, proof asserts board dims==config(index), FlowAnimator stops Timer). Run.next_board wires config.weights (fixes E2 gap).
 - S4.1 — `Run` model (RefCounted): on_clear/on_fail/next_board/restart, run-score Σ, index escalation. 6 GUT tests (control: smaller run doesn't lower high). gate 85.
+- S4.2 — `SaveStore` (`scripts/save_store.gd`): high-score JSON in `user://highscore.json`; load (0 if absent/wrong-shape) / save / overwrite. 4 GUT tests (control: wrong-shape→0). gate 89.
