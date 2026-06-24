@@ -5,7 +5,7 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 
 ## Current state
 - Gate: `tools/run-gate.ps1` (headless GUT). Green — 89 tests, 88 pass + 1 quarantined control.
-- **E0 ✅ · E1 ✅ · E2 ✅ · E3 ✅ — 3/8 sections `proof-passing`. E4 (endless-run): all 3 sprints built → entering epic-close.**
+- **E0 ✅ · E1 ✅ · E2 ✅ · E3 ✅ · E4 (endless-run) CLOSED ✅ — 4/8 sections `proof-passing`.** Remaining: E5 difficulty-onboarding, E6 juice, E7a android-export, E7b stubbed-services.
 - Model `scripts/model/` (pure, Node-free). View `scripts/view/` (`grid_layout`,`tile`,`board_view`,`flow_animator`,`hud`) + `scripts/main.gd` (controller) + `scenes/main.tscn`. Autoloads: `Config`, `Settings`.
 - Full endless loop: build → GO/expiry → `FlowAnimator` runs water → CLEARED banks score + advances to next (harder) board via `Run`/`_mount_board`; LEAK/BOMB → run-end + `SaveStore` high-score + Restart. HUD shows run/best score.
 - **[integration] entry = `main.gd` scripted mode** (env `PIPE_TEST`), run HEADLESS via console binary, asserts stdout markers.
@@ -13,10 +13,11 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - **FINDING (human decision):** shortcut-collapse needs t-junctions (deferred) — MVP score = single-path length.
 
 ## Next session
-- **E4 epic-close** (STEP 6): reflection → harden → regression → proof → retro. E4 proof = the
-  scripted-Main run loop (RUN_SCORE Σ=15, board dims==config(index) on reload, fail→RUN_OVER +
-  HIGH persisted, restart resets). main.gd is shared-scene → regression re-runs ALL prior proofs.
-  On pass → endless-run 4/8 `proof-passing`. Then plan E5 (difficulty-onboarding).
+- **Plan E5 (difficulty-onboarding)** — tune the `Difficulty.config(n)` ramp (already pinned in E1)
+  + first-board onboarding/tutorial that teaches the non-obvious shortest-route scoring. The ramp
+  exists; E5 is about validating its curve (build-time floor, hazard caps, ≥44dp cell cap, piece-mix)
+  and a one-board guided intro. Proof = config-curve assertions + onboarding-state behavior.
+- Driving inline-continuous now (no wait between chunks); ScheduleWakeup still set as a fallback.
 
 ## History
 - E0 — Godot 4.6 project + GUT gate (`667a0e5`).
@@ -46,3 +47,5 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - S4.1 — `Run` model (RefCounted): on_clear/on_fail/next_board/restart, run-score Σ, index escalation. 6 GUT tests (control: smaller run doesn't lower high). gate 85.
 - S4.2 — `SaveStore` (`scripts/save_store.gd`): high-score JSON in `user://highscore.json`; load (0 if absent/wrong-shape) / save / overwrite. 4 GUT tests (control: wrong-shape→0). gate 89.
 - S4.3 — wire Main↔Run+SaveStore: `_mount_board()` (frees old _bv/_hud, resets countdown), `_on_outcome` run loop (guarded by _run!=null → E3 preserved), `_restart`, HUD run/best score + Restart btn, FlowAnimator.setup() stops Timer. Integration: RUN_SCORE=15, BOARD3_DIMS=(6,8)==config(3), RUN_OVER+HIGH=15 saved, restart→0 keeps best. E3 markers regression-green.
+- S4.4 — E4 reflection BLOCKER fix: `FlowAnimator.stop()`+`is_running()`; `_mount_board` stops the animator before freeing `_bv` (Restart/advance-mid-flow no longer ticks a freed node). Integration: ANIM_RUNNING_DURING_FLOW=true→AFTER_MOUNT=false.
+- E4 close — harden (typed Main fields + dropped dead guards), regression green (E2+E3 markers), PROOF PASS → endless-run `proof-passing` (4/8).
