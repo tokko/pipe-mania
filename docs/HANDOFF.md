@@ -4,10 +4,11 @@ Autonomous `/crunch` build. Resume pointer: `.auto-sprint-board/crunch-state.jso
 Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/core-model.md`.
 
 ## Current state
-- Gate: `tools/run-gate.ps1` (headless GUT). Green — 102 tests, 101 pass + 1 quarantined control.
+- Gate: `tools/run-gate.ps1` (headless GUT). Green — 101 tests, 100 pass + 1 quarantined control.
 - **E0 ✅ · E1–E6 ✅ · E7b ✅ — 7/8 sections `proof-passing`. E7a (android-export) APK PARK LIFTED ✅** — the APK now builds headless, installs, and BOOTS on device `RFCYA02N5LZ` (was blocked on Godot export templates + the `import_etc2_astc` project setting; both resolved 2026-06-24). To formally close the run as `done` (8/8): flip android-export → proof-passing + run the final council (pending user go-ahead).
 - **Build recipe (GREEN):** `tools/android-preflight.ps1` → `godot --headless --export-debug Android build/aqueduct.apk` → `adb start-server` then `adb -s <dev> install -r`. See `docs/epics/android-export.md` "RESOLVED" section for the full gotcha list (ETC2 silent-fail, editor clobbers project.godot, adb cold-start eats install).
 - **On-device UX pass (2026-06-24):** inlet/outlet markers (green ▽ in / red ▽ out), HUD "Place:" current-piece preview, tutorial widened 1×5→5×7 (fills width), action buttons moved to a bottom bar (off the grid), banner word-wraps.
+- **Gameplay overhaul (2026-06-25, `e8cd356`) — supersedes several notes below:** classic Pipe-Mania placement: the deck deals pre-oriented pieces (no manual rotation — **Rotate button + `Settings.rotation_enabled` + haptics REMOVED**, superseding the S2.4 rotation note), brass dry-pipe color; one tap = one place (mouse-only input fixes the touch+mouse double-place); flow countdown **frozen until first placement**; **tutorial board DROPPED** — first board is procedural config(0) + onboarding banner (supersedes S5.x `tutorial_board`/1×5→5×7 notes); piece-type recency decay; bombs `2+n/2` / blocked `3+n/2` (board 0 now hazardous). All verified on-device.
 - Model `scripts/model/` (pure, Node-free). View `scripts/view/` (`grid_layout`,`tile`,`board_view`,`flow_animator`,`hud`) + `scripts/main.gd` (controller) + `scenes/main.tscn`. Autoloads: `Config`, `Settings`, `Audio`, `Services`.
 - Full endless loop: build → GO/expiry → `FlowAnimator` runs water → CLEARED banks score + advances to next (harder) board via `Run`/`_mount_board`; LEAK/BOMB → run-end + `SaveStore` high-score + Restart. HUD shows run/best score.
 - **[integration] entry = `main.gd` scripted mode** (env `PIPE_TEST`), run HEADLESS via console binary, asserts stdout markers.
@@ -15,6 +16,7 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - **FINDING (human decision):** shortcut-collapse needs t-junctions (deferred) — MVP score = single-path length.
 
 ## Next session
+- **PRIMARY (user goal): full-game polish → "fully fledged game."** Plan + build: live **leaderboards + monetization** (wire the existing `Services` ad/iap/leaderboard stubs in `scripts/services.gd` to real SDKs — needs accounts), a **splash screen**, a **start/menu screen** (game currently boots straight into a board), contextual service buttons (Revive on run-over only), and a polish pass. Start with a planning session (no code yet) to scope phases.
 - **APK builds + boots on-device now** — the toolchain park is lifted. To close the run as `done`
   (8/8): flip android-export → proof-passing (its acceptance is met: APK builds headless + installs +
   boots; a fixed-seed board-clear smoke would fully satisfy #3) and run the final design-doc council.
@@ -75,3 +77,10 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - **Caveats discovered:** Godot export errors are editor-GUI-only (read them there first, don't guess presets); the open editor re-saves/clobbers `project.godot`; `adb install -r` is silently lost to a cold daemon (`adb start-server` first). Full list in `docs/epics/android-export.md` "RESOLVED" section.
 - **Review:** gate 102 green; adversarial HIGH (`draw_colored_polygon` Color arg) rejected as false-positive (correct API + verified rendering 740/1051 px); 2 MEDIUM logged (bottom-bar hardcoded y responsive caveat; HUD re-bind mitigated by `_mount_board` recreating the HUD).
 - **Carry-over:** flip android-export → proof-passing + final council to close run `done` (8/8) — pending user go-ahead; responsive bottom-bar; contextual service-button gating.
+
+### 2026-06-25 · interactive gameplay overhaul (deck orientation, UX, balance) → done · `e8cd356`
+- **Shipped (user-driven, on-device verified each step):** deck deals pre-oriented pieces (`piece_queue.current_rot()`); `place(x,y)` stamps the dealt orientation — manual rotation (Rotate button, `Settings.rotation_enabled`, `_effective_rotation`) and haptics/vibration REMOVED. Brass dry-pipe color. Flow countdown frozen until first placement; prominent "Flow in Ns". Tutorial board DROPPED — first board is procedural config(0) + onboarding banner (`Run.tutorial_board()` + queue `fixed_rot` deleted). Piece-type recency decay (last-2 window ×0.5). Bombs `2+n/2` / blocked `3+n/2`.
+- **Root-cause fix:** "placed tile ≠ preview / two pieces per tap" = `emulate_mouse_from_touch` firing BOTH `InputEventScreenTouch` and an emulated `InputEventMouseButton` → `BoardView._unhandled_input` now handles ONLY the mouse press (one source = one place).
+- **Caveats discovered (cache these):** (a) on Android a single tap yields touch + emulated-mouse — handle one source or you double-act; (b) the spaced project path `D:\claude projects\…` trips a removal guard when Godot overwrites `build\aqueduct.apk` → export to a no-space path (`C:\Temp\aqueduct.apk`) and `adb install` from there.
+- **Verification:** GUT 100 pass (101 total incl. quarantined control); behaviour witnessed on-device (placement = preview, countdown freeze, varied first board, bombs/blocks visible, no buzz).
+- **Carry-over:** user's next goal = full-game polish (leaderboards, monetization, splash + start screens) — see Next session.
