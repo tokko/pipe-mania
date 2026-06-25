@@ -3,13 +3,11 @@ extends CanvasLayer
 ## model via BoardView.state_changed (re-reads on change; never polls the model per frame).
 
 signal go_pressed
-signal restart_pressed
-signal revive_pressed
-signal remove_ads_pressed
-signal leaderboard_pressed
+signal menu_pressed  # abandon the run -> back to the start menu (only meaningful under the UI flow)
 
 const Tile = preload("res://scripts/view/tile.gd")
 const PT = preload("res://scripts/model/pipe_types.gd")
+const UiStyle = preload("res://scripts/view/ui_style.gd")
 const _PIECE_NAME := {0: "-", 1: "I", 2: "L", 3: "+"}  # NONE/STRAIGHT/BEND/CROSS glyphs
 
 var _gs
@@ -23,41 +21,56 @@ var _outcome_label: Label
 var _score_label: Label
 var _tutorial_label: Label
 var _current_tile: Tile  # visible preview of the piece you're about to place
+var _go_btn: Button       # hidden when flow starts (GO only makes sense during BUILD)
 
 
 func _ready() -> void:
+	var st := UiStyle.safe_top()  # push the top UI below a display cutout (0 without one / headless)
 	# Flow countdown is the hero of the build phase — large and top-left so it never gets lost.
-	_countdown_label = _mk_label(Vector2(16, 8))
+	_countdown_label = _mk_label(Vector2(16, 8 + st))
 	_countdown_label.add_theme_font_size_override("font_size", 40)
-	_score_label = _mk_label(Vector2(16, 60))
-	_route_label = _mk_label(Vector2(16, 90))
-	_preview_label = _mk_label(Vector2(16, 118))
-	_outcome_label = _mk_label(Vector2(260, 60))
-	# Onboarding banner: bottom area, word-wrapped so it never runs off-screen.
-	_tutorial_label = _mk_label(Vector2(16, 1078))
-	_tutorial_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	_tutorial_label.size = Vector2(690, 0)
-	_tutorial_label.custom_minimum_size = Vector2(690, 0)
-	_mk_label(Vector2(470, 12)).text = "Place:"  # label above the current-piece preview
+	_score_label = _mk_label(Vector2(16, 60 + st))
+	_route_label = _mk_label(Vector2(16, 90 + st))
+	_preview_label = _mk_label(Vector2(16, 118 + st))
+	_outcome_label = _mk_label(Vector2(260, 60 + st))
+	_mk_label(Vector2(470, 12 + st)).text = "Place:"  # label above the current-piece preview
 	_current_tile = Tile.new()
 	_current_tile.size = 96
-	_current_tile.position = Vector2(470, 40)
+	_current_tile.position = Vector2(470, 40 + st)
 	add_child(_current_tile)
-	# Action buttons in a BOTTOM bar (below the board) so they never cover the grid or its ports.
-	var by := 1212
-	_mk_btn("GO", Vector2(12, by), func() -> void: go_pressed.emit())
-	_mk_btn("Restart", Vector2(96, by), func() -> void: restart_pressed.emit())
-	_mk_btn("Revive", Vector2(216, by), func() -> void: revive_pressed.emit())
-	_mk_btn("Remove Ads", Vector2(316, by), func() -> void: remove_ads_pressed.emit())
-	_mk_btn("Leaderboard", Vector2(470, by), func() -> void: leaderboard_pressed.emit())
+	# Onboarding banner: anchored just above the bottom bar, word-wrapped so it never runs off-screen.
+	_tutorial_label = Label.new()
+	_tutorial_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_tutorial_label.offset_left = 16
+	_tutorial_label.offset_right = -16
+	_tutorial_label.offset_top = -210
+	_tutorial_label.offset_bottom = -110
+	_tutorial_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_tutorial_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	add_child(_tutorial_label)
+	# Build-phase actions in a bottom bar anchored to the viewport bottom (tracks tall screens, no
+	# magic y). Post-run actions (Revive/Leaderboard/...) live on the run-over screen, not here.
+	var bar := Control.new()
+	bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	bar.offset_top = -92
+	bar.offset_bottom = -16
+	add_child(bar)
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 16)
+	hb.position = Vector2(16, 0)
+	bar.add_child(hb)
+	_go_btn = UiStyle.button("GO")
+	_go_btn.pressed.connect(func() -> void: go_pressed.emit())
+	hb.add_child(_go_btn)
+	var menu_btn := UiStyle.button("Menu")
+	menu_btn.pressed.connect(func() -> void: menu_pressed.emit())
+	hb.add_child(menu_btn)
 
 
-func _mk_btn(text: String, pos: Vector2, cb: Callable) -> void:
-	var b := Button.new()
-	b.text = text
-	b.position = pos
-	b.pressed.connect(cb)
-	add_child(b)
+## Show/hide GO — it only applies during BUILD; flow start hides it.
+func show_go(shown: bool) -> void:
+	if _go_btn != null:
+		_go_btn.visible = shown
 
 
 func _mk_label(pos: Vector2) -> Label:

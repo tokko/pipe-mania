@@ -16,6 +16,7 @@ const Difficulty = preload("res://scripts/model/difficulty.gd")
 const Run = preload("res://scripts/model/run.gd")
 const SaveStore = preload("res://scripts/save_store.gd")
 const PT = preload("res://scripts/model/pipe_types.gd")
+const ScreenController = preload("res://scripts/screen_controller.gd")
 
 const VIEW := Vector2i(720, 1280)
 const MIN_CELL := 44
@@ -31,6 +32,9 @@ var _last_score := 0
 var _build_remaining := 0.0  # build-phase countdown (E3 wires GO at zero)
 var _clock_started := false  # countdown is frozen until the first placement (never time out before you begin)
 var _tutorial_active := false  # first-run onboarding banner showing (dismissed on first GO)
+var _ui_flow_active := false  # true once the splash/menu screen flow is running (never in PIPE_TEST)
+var _screen: ScreenController  # the screen-flow FSM (non-test branch only)
+var _games_played := 0  # gates the between-runs interstitial (skip the first game of a session)
 
 
 func _ready() -> void:
@@ -38,7 +42,21 @@ func _ready() -> void:
 		_run_scripted()
 		get_tree().quit()
 		return
-	_start_game()
+	_boot()
+
+
+# Non-test boot: hand control to the screen flow (splash -> menu -> game). The game itself is still
+# started by _start_game(), which the ScreenController calls when the player taps Play / New Game.
+# Monetization grants are callback-driven: we connect the Services success signals ONCE here so the
+# dev stub (deferred-emit) and a real async SDK drive the exact same grant path.
+func _boot() -> void:
+	_ui_flow_active = true
+	Services.ad.reward_earned.connect(_on_reward_earned)
+	Services.iap.purchase_succeeded.connect(_on_purchase_succeeded)
+	_screen = ScreenController.new()
+	_screen.setup(self)
+	add_child(_screen)
+	_screen.start()
 
 
 func _start_game() -> void:
@@ -74,10 +92,7 @@ func _mount_board(gs) -> void:
 	add_child(_hud)
 	_hud.bind(_bv)
 	_hud.go_pressed.connect(_start_flow)
-	_hud.restart_pressed.connect(_restart)
-	_hud.revive_pressed.connect(_on_revive)
-	_hud.remove_ads_pressed.connect(_on_remove_ads)
-	_hud.leaderboard_pressed.connect(_on_leaderboard)
+	_hud.menu_pressed.connect(_on_menu)
 	var c = Difficulty.config(_run.board_index)  # _mount_board is only ever called after _run is set
 	_build_remaining = float(c.build_seconds)
 	_clock_started = false  # don't tick until the player places their first pipe
@@ -101,6 +116,8 @@ func _start_flow() -> void:
 	if _gs.phase == GameState.Phase.FLOW:
 		return
 	Audio.play("go")
+	if _hud != null:
+		_hud.show_go(false)  # GO only applies during BUILD
 	if _tutorial_active:  # first GO (or countdown-expiry) dismisses the tutorial, once
 		SaveStore.save_tutorial_seen(true)
 		_tutorial_active = false
@@ -143,6 +160,8 @@ func _on_outcome(outcome: int, score: int) -> void:
 		_run.on_fail()
 		SaveStore.save_high(_run.high_score)
 		_hud.set_outcome(_run_end_text())
+		if _ui_flow_active:  # surface the run-over screen (never in the headless gate)
+			_screen.show_runover(_run)
 
 
 func _advance_board() -> void:
@@ -156,11 +175,54 @@ func _restart() -> void:
 	_mount_first_board()  # re-evaluates tutorial state (restart mid-tutorial keeps it consistent)
 
 
+# --- screen-flow lifecycle (called by ScreenController on the non-test branch) ---
+
+func start_game() -> void:
+	_maybe_show_interstitial()  # between-runs ad seam (suppressed when ads removed / first game)
+	_start_game()
+
+
+# Interstitial between runs: shown on the 2nd+ game of a session, suppressed once ads are removed.
+# Stub today (records the call); a real adapter shows the actual ad here.
+func _maybe_show_interstitial() -> void:
+	if _games_played > 0 and not Settings.ads_removed:
+		Services.ad.show_interstitial()
+	_games_played += 1
+
+
+# Tear the active game down to nothing (returning to the menu): stop the animator, free the board
+# and HUD, drop the run. Mirrors _mount_board's teardown.
+func teardown_game() -> void:
+	if _animator != null:
+		_animator.stop()
+	if _bv != null:
+		_bv.queue_free()
+		_bv = null
+	if _hud != null:
+		_hud.queue_free()
+		_hud = null
+	_run = null
+
+
+func request_revive() -> void:
+	_on_revive()
+
+
+func purchase_remove_ads() -> void:
+	_on_remove_ads()
+
+
+func _on_menu() -> void:  # in-run Menu button -> abandon the run, back to the start menu
+	if _screen != null:
+		_screen.go_menu()
+
+
 func _run_end_text() -> String:
 	return "RUN OVER  score=%d  best=%d" % [_run.run_score, _run.high_score]
 
 
-# Monetization/leaderboard UI hooks -> Services (no-op stubs by default; live wiring is post-run).
+# Monetization hooks REQUEST the action; the GRANT happens in the Services success-signal handlers
+# below (never right after a fire-and-forget call) so the dev stub and a real async SDK behave alike.
 func _on_revive() -> void:
 	Services.ad.show_rewarded("revive")
 
@@ -171,6 +233,19 @@ func _on_remove_ads() -> void:
 
 func _on_leaderboard() -> void:
 	Services.leaderboard.submit_score(_run.run_score if _run != null else 0)
+
+
+# Rewarded ad completed -> grant the continue: resume the current board, keep the banked run score.
+func _on_reward_earned(kind) -> void:
+	if kind == "revive" and _run != null and _run.over:
+		_run.revive()
+		_mount_board(_run.revive_board())
+
+
+# Purchase acknowledged -> persist + apply (Settings mirrors SaveStore; future ad-show sites check it).
+func _on_purchase_succeeded(product) -> void:
+	if product == "remove_ads":
+		Settings.set_ads_removed(true)
 
 
 func _outcome_text(outcome: int, score: int) -> String:
@@ -458,6 +533,53 @@ func _run_scripted() -> void:
 	_run.on_clear(9)  # run_score = 9
 	_on_leaderboard()
 	print("HOOK_LB=", Services.leaderboard.last_call)
+
+	# --- E8: screen flow — the ScreenController drives SPLASH -> MENU -> GAME -> RUNOVER, and the
+	# RUNOVER transition is reached via the REAL run-end handler (_on_outcome), not a direct _goto. ---
+	_ui_flow_active = true
+	_screen = ScreenController.new()
+	_screen.setup(self)
+	add_child(_screen)
+	_screen.start()
+	print("SCREEN_SPLASH=", _screen.screen_label())  # expect SPLASH
+	_screen._on_splash_dismissed()
+	print("SCREEN_AFTER_SPLASH=", _screen.screen_label())  # expect MENU
+	_screen._on_menu_play()
+	print("SCREEN_AFTER_PLAY=", _screen.screen_label())  # expect GAME (board mounted, no overlay)
+	_on_outcome(GameState.Outcome.LEAK, 0)  # a real run-end must raise the run-over screen
+	print("SCREEN_AFTER_LEAK=", _screen.screen_label())  # expect RUNOVER
+	# qualification: a positive score on a short board qualifies; a full board of higher scores does not
+	SaveStore.clear_leaderboard()
+	print("RUNOVER_QUALIFIES=", _screen._qualifies(5))  # expect true
+	for _i in 10:
+		SaveStore.add_leaderboard_entry("ZZZ", 100)
+	print("RUNOVER_QUALIFIES_FULL=", _screen._qualifies(5))  # expect false (control)
+	SaveStore.clear_leaderboard()
+	_ui_flow_active = false  # leave the scripted state clean for any trailing checks
+
+	# --- E9: monetization grants are callback-driven (revive resume / interstitial gate / IAP persist) ---
+	# revive grant: reward_earned on a live over-run clears `over` and preserves the banked run score
+	_run = Run.new(3)
+	_run.on_clear(7)  # run_score = 7
+	_run.on_fail()    # over
+	_on_reward_earned("revive")
+	print("REVIVE_OVER=", _run.over, " REVIVE_RUN_SCORE=", _run.run_score)  # expect false 7
+	# interstitial seam: shown on a replay when ads are NOT removed, suppressed when they are
+	Settings.ads_removed = false
+	_games_played = 1  # force "not the first game of the session"
+	Services.ad.last_call = ""
+	_maybe_show_interstitial()
+	print("INTERSTITIAL_SHOWN=", Services.ad.last_call)  # expect interstitial
+	Settings.ads_removed = true
+	Services.ad.last_call = ""
+	_maybe_show_interstitial()
+	print("INTERSTITIAL_SUPPRESSED=", Services.ad.last_call == "")  # expect true (control)
+	# remove-ads purchase persists + mirrors into Settings
+	Settings.ads_removed = false
+	_on_purchase_succeeded("remove_ads")
+	print("ADS_REMOVED_RUNTIME=", Settings.ads_removed, " PERSISTED=", SaveStore.load_ads_removed())  # true true
+	Settings.ads_removed = false
+	SaveStore.save_ads_removed(false)  # restore default for clean reruns
 
 
 # Helpers for the S3.2 scripted flow checks.

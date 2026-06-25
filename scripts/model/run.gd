@@ -13,6 +13,7 @@ var board_index: int = 0
 var run_score: int = 0
 var high_score: int = 0
 var over: bool = false
+var revived: bool = false  # a run may be revived once (rewarded-ad continue)
 
 
 func _init(seed_: int = 0) -> void:
@@ -40,8 +41,24 @@ func next_board() -> GameState:
 	return GameState.new(board, q)
 
 
+## A one-time mid-run continue (rewarded-ad revive): clear the over flag and bank the revive so
+## it can't be used twice. No-op on a live run or once already revived.
+func revive() -> void:
+	if over and not revived:
+		over = false
+		revived = true
+
+
+## The board to resume on after a revive: the CURRENT board, fresh, WITHOUT advancing the index
+## (next_board() reads board_index and never increments — on_clear does). Named so callers don't
+## reason about the index invariant.
+func revive_board() -> GameState:
+	return next_board()
+
+
 ## Restart the run (keep the high score).
 func restart() -> void:
 	board_index = 0
 	run_score = 0
 	over = false
+	revived = false
