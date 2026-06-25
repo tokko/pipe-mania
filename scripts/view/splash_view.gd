@@ -17,7 +17,7 @@ func _ready() -> void:
 	add_child(UiStyle.backdrop())
 	var vb := UiStyle.centered_column(self)
 	var icon := TextureRect.new()
-	icon.texture = load("res://icon.svg")
+	icon.texture = preload("res://icon.svg")
 	icon.custom_minimum_size = Vector2(160, 160)
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED

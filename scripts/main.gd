@@ -202,6 +202,8 @@ func teardown_game() -> void:
 		_hud.queue_free()
 		_hud = null
 	_run = null
+	_clock_started = false  # else _process ticks the build countdown into the freed _hud next frame
+	_build_remaining = 0.0
 
 
 func request_revive() -> void:
@@ -555,6 +557,14 @@ func _run_scripted() -> void:
 		SaveStore.add_leaderboard_entry("ZZZ", 100)
 	print("RUNOVER_QUALIFIES_FULL=", _screen._qualifies(5))  # expect false (control)
 	SaveStore.clear_leaderboard()
+	# teardown-from-Menu AFTER a placement must reset the build clock, or _process ticks the freed
+	# _hud next frame (BLOCKER regression: place a pipe, tap Menu -> crash).
+	start_game()
+	_clock_started = true
+	_build_remaining = 5.0
+	teardown_game()
+	_process(0.1)  # would dereference a null _hud if the clock weren't reset
+	print("TEARDOWN_SAFE=", (not _clock_started) and _hud == null)  # expect true
 	_ui_flow_active = false  # leave the scripted state clean for any trailing checks
 
 	# --- E9: monetization grants are callback-driven (revive resume / interstitial gate / IAP persist) ---
