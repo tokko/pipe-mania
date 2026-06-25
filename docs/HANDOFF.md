@@ -4,29 +4,30 @@ Autonomous `/crunch` build. Resume pointer: `.auto-sprint-board/crunch-state.jso
 Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/core-model.md`.
 
 ## Current state
-- Gate: `tools/run-gate.ps1` (headless GUT). Green — 101 tests, 100 pass + 1 quarantined control.
-- **E0 ✅ · E1–E6 ✅ · E7b ✅ — 7/8 sections `proof-passing`. E7a (android-export) APK PARK LIFTED ✅** — the APK now builds headless, installs, and BOOTS on device `RFCYA02N5LZ` (was blocked on Godot export templates + the `import_etc2_astc` project setting; both resolved 2026-06-24). To formally close the run as `done` (8/8): flip android-export → proof-passing + run the final council (pending user go-ahead).
+- Gate: `tools/run-gate.ps1` (headless GUT). Green — 121 tests, 120 pass + 1 quarantined control.
+- **Full-game shell SHIPPED (`0b719e1` + teardown BLOCKER fix):** splash → start menu → game → run-over, plus leaderboard/settings modals — code-built `CanvasLayer` views (`scripts/view/*_view.gd` + shared `scripts/view/ui_style.gd`) driven by `scripts/screen_controller.gd` FSM (mounted only on the non-test branch; `PIPE_TEST` entry untouched). Local top-10 leaderboard (`SaveStore`, 3-initial entry). Monetization UX: persisted Remove-Ads + interstitial suppression, callback-driven Revive — all behind `Services` real-or-stub dispatch (`Engine.has_singleton`). Procedural audio (`audio_cues.gd` bakes `AudioStreamWAV`). HUD shrunk to a responsive bottom GO/Menu bar. Whole flow verified on-device (`3A191FDJH000K4`) incl. Revive-resume + place→Menu (no crash).
+- **Real ad/IAP/online-leaderboard wiring DEFERRED (needs accounts):** `Services` uses the dev stub until the v2 AdMob/Billing plugins are present; go-live checklist in `docs/MONETIZATION_SETUP.md`. `use_gradle_build` stays `false` (prebuilt-template recipe unchanged).
 - **Build recipe (GREEN):** `tools/android-preflight.ps1` → `godot --headless --export-debug Android build/aqueduct.apk` → `adb start-server` then `adb -s <dev> install -r`. See `docs/epics/android-export.md` "RESOLVED" section for the full gotcha list (ETC2 silent-fail, editor clobbers project.godot, adb cold-start eats install).
 - **On-device UX pass (2026-06-24):** inlet/outlet markers (green ▽ in / red ▽ out), HUD "Place:" current-piece preview, tutorial widened 1×5→5×7 (fills width), action buttons moved to a bottom bar (off the grid), banner word-wraps.
 - **Gameplay overhaul (2026-06-25, `e8cd356`) — supersedes several notes below:** classic Pipe-Mania placement: the deck deals pre-oriented pieces (no manual rotation — **Rotate button + `Settings.rotation_enabled` + haptics REMOVED**, superseding the S2.4 rotation note), brass dry-pipe color; one tap = one place (mouse-only input fixes the touch+mouse double-place); flow countdown **frozen until first placement**; **tutorial board DROPPED** — first board is procedural config(0) + onboarding banner (supersedes S5.x `tutorial_board`/1×5→5×7 notes); piece-type recency decay; bombs `2+n/2` / blocked `3+n/2` (board 0 now hazardous). All verified on-device.
 - Model `scripts/model/` (pure, Node-free). View `scripts/view/` (`grid_layout`,`tile`,`board_view`,`flow_animator`,`hud`) + `scripts/main.gd` (controller) + `scenes/main.tscn`. Autoloads: `Config`, `Settings`, `Audio`, `Services`.
 - Full endless loop: build → GO/expiry → `FlowAnimator` runs water → CLEARED banks score + advances to next (harder) board via `Run`/`_mount_board`; LEAK/BOMB → run-end + `SaveStore` high-score + Restart. HUD shows run/best score.
 - **[integration] entry = `main.gd` scripted mode** (env `PIPE_TEST`), run HEADLESS via console binary, asserts stdout markers.
-- **GOTCHAS:** (1) never name a Node method like a native (`rotate()`→hang); (2) view code: explicit `var x: T =` when assigning from untyped `gs`/`layout` calls; (3) input mapping uses absolute `event.position` vs `layout.origin` (not `to_local`); (4) `JSON.parse_string` on raw garbage logs an ERROR to stderr (still returns null) → in tests use VALID-but-wrong-shape JSON for negative controls, else the PS gate's `2>&1` escalates it to NativeCommandError; (5) `git add` a non-existent path (e.g. a `.uid`) aborts the whole add — list only real paths.
+- **GOTCHAS:** (1) never name a Node method like a native (`rotate()`→hang); (2) view code: explicit `var x: T =` when assigning from untyped `gs`/`layout` calls; (3) input mapping uses absolute `event.position` vs `layout.origin` (not `to_local`); (4) `JSON.parse_string` on raw garbage logs an ERROR to stderr (still returns null) → in tests use VALID-but-wrong-shape JSON for negative controls, else the PS gate's `2>&1` escalates it to NativeCommandError; (5) `git add` a non-existent path (e.g. a `.uid`) aborts the whole add — list only real paths; (6) a sibling teardown path (`teardown_game`) must mirror EVERY state reset of the canonical one (`_mount_board` zeroes `_clock_started`/`_build_remaining`) or `_process` ticks a freed `_hud` next frame (the shipped BLOCKER).
 - **FINDING (human decision):** shortcut-collapse needs t-junctions (deferred) — MVP score = single-path length.
 
 ## Next session
-- **PRIMARY (user goal): full-game polish → "fully fledged game."** Plan + build: live **leaderboards + monetization** (wire the existing `Services` ad/iap/leaderboard stubs in `scripts/services.gd` to real SDKs — needs accounts), a **splash screen**, a **start/menu screen** (game currently boots straight into a board), contextual service buttons (Revive on run-over only), and a polish pass. Start with a planning session (no code yet) to scope phases.
-- **APK builds + boots on-device now** — the toolchain park is lifted. To close the run as `done`
-  (8/8): flip android-export → proof-passing (its acceptance is met: APK builds headless + installs +
-  boots; a fixed-seed board-clear smoke would fully satisfy #3) and run the final design-doc council.
-- **Known UX follow-ups (logged this session, none blocking):** bottom button-bar uses a hardcoded
-  `y=1212` — fine on portrait phones (verified) but could clip on a short/tablet aspect; move to a
-  bottom-anchored Control for true responsiveness. Buttons (Revive/RemoveAds/Leaderboard) are dev
-  stubs always-on — gate them contextually (Revive on run-over) in a real menu pass.
-- **Optional polish** (logged in `open_reflection_items`, none gating): E6 clear-celebration beat,
-  live high-score display, relaxed tutorial clock, banner safe-area; live AdMob/IAP/leaderboard wiring
-  (needs accounts); trademark search before finalizing the "Aqueduct" name.
+- **Live monetization + online services (needs your accounts):** follow `docs/MONETIZATION_SETUP.md` —
+  AdMob app + rewarded/interstitial ad units, Play Console `remove_ads` managed product, install the v2
+  AdMob + `GodotGooglePlayBilling` plugins, flip `use_gradle_build=true` (only then — it needs the build
+  template + NDK), wire the `*Real` adapters (`TODO(Phase 5)` in `scripts/services.gd`), test on a signed
+  Play build.
+- **Online leaderboard (optional):** the `Services.leaderboard` interface (`submit_score`/`get_top`) is
+  stable — add a `LeaderboardServiceReal` (Play Games or REST) + a signal-based async wrapper; validate
+  scores server-side (local scores are plaintext-tamperable, noted in the setup doc).
+- **Polish (optional, none blocking):** clear-celebration beat on advance; swap the procedural tones in
+  `audio_cues.gd` for real SFX clips (the playback seam is already there); trademark search before
+  finalizing the "Aqueduct" name (rename via `Config.GAME_NAME`).
 
 ## History
 - E0 — Godot 4.6 project + GUT gate (`667a0e5`).
@@ -84,3 +85,11 @@ Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/c
 - **Caveats discovered (cache these):** (a) on Android a single tap yields touch + emulated-mouse — handle one source or you double-act; (b) the spaced project path `D:\claude projects\…` trips a removal guard when Godot overwrites `build\aqueduct.apk` → export to a no-space path (`C:\Temp\aqueduct.apk`) and `adb install` from there.
 - **Verification:** GUT 100 pass (101 total incl. quarantined control); behaviour witnessed on-device (placement = preview, countdown freeze, varied first board, bombs/blocks visible, no buzz).
 - **Carry-over:** user's next goal = full-game polish (leaderboards, monetization, splash + start screens) — see Next session.
+
+### 2026-06-25 · full-game shell (splash/menu/run-over, leaderboard, monetization UX, audio) → done · `0b719e1`
+- **Planned + council-reviewed first** (6-reviewer adversarial pass on the plan; blockers folded in: phase-ordering parse crash → config created early, splash use-after-free guard, callback-driven grants, modal tap-through), then built in 6 dependency-ordered phases, each gate-verified.
+- **Shipped:** screen-flow FSM (`scripts/screen_controller.gd` + 5 `scripts/view/*_view.gd` + shared `ui_style.gd`) on the non-test branch (`PIPE_TEST` untouched); local top-10 leaderboard (`SaveStore`); `Services` real-or-stub dispatch with **deferred success signals** so the dev stub mirrors a real async SDK (grant in the handler, never after the fire-and-forget call); `Run.revive()`/`revive_board()`; Remove-Ads persistence + interstitial seam; procedural audio (`audio_cues.gd` bakes `AudioStreamWAV`); HUD → responsive bottom GO/Menu bar (fixes the old hardcoded `y=1212`).
+- **Decisions:** screen FSM extracted to a child controller (not `main.gd`, already 492 lines); views never touch `SaveStore` (controller passes data via `setup()`); kept `monetization_config.gd` committed (IDs aren't secrets — they ship in every APK) rather than gitignoring (which would break `preload`).
+- **Caveats discovered:** `teardown_game` (new Menu button) must reset `_clock_started`/`_build_remaining` like `_mount_board` does, or `_process` ticks a freed `_hud` — a real **BLOCKER** the post-impl godot-reviewer caught (plan-council didn't); fixed + regression marker `TEARDOWN_SAFE` + on-device repro. The Godot-run game window isn't a grantable computer-use app — verify visuals via the installed APK + `adb screencap`, not the desktop window.
+- **Verification:** gate 121 (120 pass + 1 quarantined); new PIPE_TEST markers value-assert the screen flow (via the real `_on_outcome`), revive grant, interstitial control, IAP persistence. APK builds with **zero** build-config changes; full flow + Revive-resume + place→Menu verified on device `3A191FDJH000K4`.
+- **Carry-over:** live SDK/online wiring (account-gated, `docs/MONETIZATION_SETUP.md`); real SFX clips; trademark the name. The post-impl review found 1 BLOCKER (fixed) + 2 LOW (1 applied: splash `load`→`preload`; 1 skipped: a guard for a provably-impossible null at `_on_outcome` run-end, per simplicity).
