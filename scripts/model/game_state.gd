@@ -242,6 +242,11 @@ func current_piece() -> int:
 	return queue.current()
 
 
+## The orientation the deck rolled for the current piece (drives the HUD preview).
+func current_rot() -> int:
+	return queue.current_rot()
+
+
 func preview(n: int) -> Array:
 	return queue.preview(n)
 
@@ -264,10 +269,10 @@ func mark_wet(x: int, y: int) -> void:
 	_wet[y * board.width + x] = 1
 
 
-## Place the current (forced) piece at (x,y) with rotation. Returns true on success.
-## Rejected outside BUILD, off an OPEN cell, or onto already-wet pipe. Dry pipe may
-## be freely overwritten.
-func place(x: int, y: int, rotation: int = 0) -> bool:
+## Place the current (forced) piece at (x,y), oriented as the deck dealt it (no manual
+## rotation — classic Pipe Mania). Returns true on success. Rejected outside BUILD, off
+## an OPEN cell, or onto already-wet pipe. Dry pipe may be freely overwritten.
+func place(x: int, y: int) -> bool:
 	if phase != Phase.BUILD:
 		return false
 	if not board.in_bounds(x, y):
@@ -278,6 +283,6 @@ func place(x: int, y: int, rotation: int = 0) -> bool:
 	if _wet[idx] != 0:
 		return false
 	_ptype[idx] = queue.current()
-	_prot[idx] = rotation & 3
+	_prot[idx] = queue.current_rot()
 	queue.advance()
 	return true

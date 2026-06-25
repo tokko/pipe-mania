@@ -28,8 +28,8 @@ var _run: Run
 var _animator: FlowAnimator
 var _last_outcome := -1  # last resolved Outcome (for the headless gate / S3.3 display)
 var _last_score := 0
-var _current_rotation := 0  # player-chosen orientation; used only when Settings.rotation_enabled
 var _build_remaining := 0.0  # build-phase countdown (E3 wires GO at zero)
+var _clock_started := false  # countdown is frozen until the first placement (never time out before you begin)
 var _tutorial_active := false  # first-run onboarding banner showing (dismissed on first GO)
 
 
@@ -47,15 +47,13 @@ func _start_game() -> void:
 	_mount_first_board()
 
 
-# Board 0 of a run: the onboarding tutorial board (+ banner) until tutorial_seen, else procedural
-# config(0). Shared by _start_game and _restart so the tutorial state and the screen never disagree.
+# Board 0 of a run: a normal procedural config(0) board, plus the first-run onboarding banner
+# (until tutorial_seen). Shared by _start_game and _restart so the banner state and the screen agree.
 func _mount_first_board() -> void:
 	_tutorial_active = not SaveStore.load_tutorial_seen()
+	_mount_board(_run.next_board())
 	if _tutorial_active:
-		_mount_board(_run.tutorial_board())
 		_hud.set_tutorial("Build a path from inlet to outlet. Longer & shortcut-free = more points. Avoid bombs. Tap GO.")
-	else:
-		_mount_board(_run.next_board())
 
 
 # The single teardown-safe board-mount path (used by _start_game, board-advance, restart).
@@ -75,7 +73,6 @@ func _mount_board(gs) -> void:
 	_hud = HUD.new()
 	add_child(_hud)
 	_hud.bind(_bv)
-	_hud.rotate_pressed.connect(cycle_rotation)
 	_hud.go_pressed.connect(_start_flow)
 	_hud.restart_pressed.connect(_restart)
 	_hud.revive_pressed.connect(_on_revive)
@@ -83,12 +80,15 @@ func _mount_board(gs) -> void:
 	_hud.leaderboard_pressed.connect(_on_leaderboard)
 	var c = Difficulty.config(_run.board_index)  # _mount_board is only ever called after _run is set
 	_build_remaining = float(c.build_seconds)
+	_clock_started = false  # don't tick until the player places their first pipe
 	_hud.set_countdown(c.build_seconds)
 	_hud.set_scores(_run.run_score, _run.high_score)
 
 
 func _process(delta: float) -> void:
-	if _build_remaining > 0.0:
+	# The flow countdown is frozen until the first pipe is placed, so a player examining a
+	# fresh board is never timed out before they start (the "tapping does nothing" trap).
+	if _clock_started and _build_remaining > 0.0:
 		_build_remaining -= delta
 		_hud.set_countdown(maxi(0, ceili(_build_remaining)))
 		if _build_remaining <= 0.0:
@@ -190,26 +190,16 @@ func _on_cell_tapped(x: int, y: int) -> void:
 
 
 # Controller: mutate the model (the view never does), then refresh or give invalid feedback.
+# The placed piece is oriented by the deck — there is no manual rotation (classic Pipe Mania).
 func place_at(x: int, y: int) -> bool:
-	if _gs.place(x, y, _effective_rotation()):
+	if _gs.place(x, y):
+		_clock_started = true  # the first placed pipe starts the flow countdown
 		_bv.notify_changed()
 		Audio.play("place")
 		return true
 	_bv.shake()
 	Audio.play("invalid")
-	if Settings.haptics_enabled:
-		Input.vibrate_handheld(40)
 	return false
-
-
-func _effective_rotation() -> int:
-	return _current_rotation if Settings.rotation_enabled else 0
-
-
-# Cycle the player-chosen orientation (only meaningful when rotation is enabled).
-# NB: NOT named rotate() — that collides with Node2D.rotate(float).
-func cycle_rotation() -> void:
-	_current_rotation = (_current_rotation + 1) & 3
 
 
 func _run_scripted() -> void:
@@ -265,7 +255,7 @@ func _run_scripted() -> void:
 	bv3.notify_changed()  # state_changed -> HUD refresh
 	print("ROUTE_AFTER=", hud.route_value())
 
-	# --- S2.4: rotation toggle gates the placement rotation ---
+	# --- S2.4: the deck owns orientation — place() stamps the rolled rotation, no manual rotate ---
 	var b4 = Board.new(3, 3)
 	b4.set_inlet(Vector2i(0, 1), PT.W)
 	b4.set_outlet(Vector2i(2, 1), PT.E)
@@ -273,15 +263,10 @@ func _run_scripted() -> void:
 	_bv = BoardView.new()
 	add_child(_bv)
 	_bv.setup(_gs, VIEW, MIN_CELL, 0)
-	_current_rotation = 1
-	Settings.rotation_enabled = false
-	place_at(0, 0)  # rotation off -> stored rot 0
-	print("ROT_OFF=", _gs.pipe_rot_at(0, 0))
-	Settings.rotation_enabled = true
-	place_at(1, 0)  # rotation on -> stored rot = _current_rotation
-	print("ROT_ON=", _gs.pipe_rot_at(1, 0))
-	print("AUDIO=", Settings.audio_enabled, " HAPTICS=", Settings.haptics_enabled)
-	Settings.rotation_enabled = false  # reset
+	var deck_rot := _gs.current_rot()  # what the deck dealt for the next piece
+	place_at(0, 0)
+	print("PLACE_ROT_FROM_DECK=", _gs.pipe_rot_at(0, 0) == deck_rot)
+	print("AUDIO=", Settings.audio_enabled)
 
 	# --- S2.5: real input path maps an absolute tap to the right cell, even with offset ---
 	var b5 = Board.new(3, 3)
@@ -301,6 +286,15 @@ func _run_scripted() -> void:
 	ev.position = bv5.layout.cell_to_pixel(target.x, target.y) + Vector2(bv5.cell_size(), bv5.cell_size()) * 0.5
 	bv5._unhandled_input(ev)
 	print("TAP_CELL=", tapped[0])
+	# Control: the screen-touch twin of an emulated tap must be IGNORED (one finger = one place,
+	# not two — else the placed piece lands a deck slot past the preview).
+	var taps := [0]
+	bv5.cell_tapped.connect(func(_x: int, _y: int) -> void: taps[0] += 1)
+	var touch := InputEventScreenTouch.new()
+	touch.pressed = true
+	touch.position = ev.position
+	bv5._unhandled_input(touch)
+	print("TOUCH_IGNORED=", taps[0] == 0)
 
 	# --- S3.1: GO seam -> FLOW; placement disabled in FLOW; double-start guarded ---
 	var b6 = Board.new(3, 3)
@@ -327,6 +321,7 @@ func _run_scripted() -> void:
 	_hud = HUD.new()
 	add_child(_hud)
 	_hud.bind(_bv)
+	_clock_started = true  # countdown only ticks once started (first placement); force it for this check
 	_build_remaining = 0.05
 	_process(0.1)  # crosses 0 -> _start_flow
 	print("PHASE_AFTER_EXPIRY=", _gs.phase)

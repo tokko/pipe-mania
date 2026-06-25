@@ -51,3 +51,30 @@ func test_preview_matches_future_currents() -> void:
 	assert_eq(prev.size(), 5, "preview returns n upcoming pieces")
 	q.advance()
 	assert_eq(q.current(), prev[0], "preview[0] becomes current after one advance")
+
+
+func test_deck_rolls_varied_orientations() -> void:  # the deck owns rotation (classic Pipe Mania)
+	var q = PieceQueue.new(7)
+	var seen := {}
+	for i in 24:
+		seen[q.current_rot()] = true
+		q.advance()
+	assert_gt(seen.size(), 1, "deck deals more than one orientation across pieces")
+
+
+func test_recency_decay_reduces_repeats() -> void:  # variety nudge: no 3-straights-in-a-row spam
+	var q = PieceQueue.new(99)
+	var prev := -1
+	var straight_prev := 0
+	var straight_then_straight := 0
+	for i in 4000:
+		var c = q.current()
+		if prev == PT.Piece.STRAIGHT:
+			straight_prev += 1
+			if c == PT.Piece.STRAIGHT:
+				straight_then_straight += 1
+		prev = c
+		q.advance()
+	var repeat_rate := float(straight_then_straight) / maxi(1, straight_prev)
+	# Raw weight (40/100) would repeat ~0.40 of the time; the recency decay pulls it well below.
+	assert_lt(repeat_rate, 0.35, "a just-dealt type repeats less often than its raw weight implies")

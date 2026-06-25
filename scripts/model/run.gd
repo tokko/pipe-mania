@@ -5,10 +5,8 @@ extends RefCounted
 
 const Difficulty = preload("res://scripts/model/difficulty.gd")
 const BoardGen = preload("res://scripts/model/board_gen.gd")
-const Board = preload("res://scripts/model/board.gd")
 const GameState = preload("res://scripts/model/game_state.gd")
 const PieceQueue = preload("res://scripts/model/piece_queue.gd")
-const PT = preload("res://scripts/model/pipe_types.gd")
 
 var run_seed: int
 var board_index: int = 0
@@ -47,16 +45,3 @@ func restart() -> void:
 	board_index = 0
 	run_score = 0
 	over = false
-
-
-## The first-run onboarding board: a deterministic, trivially-completable full-width board
-## (5x7 = config(0) dims, so it fills the screen like a real board) with inlet top-middle /
-## outlet bottom-middle and an all-straight forced queue. The solution is a VERTICAL corridor
-## down the middle column — rot-0 straights (N|S) connect WITHOUT rotation (off by default).
-## Used as board 0 only until tutorial_seen.
-func tutorial_board() -> GameState:
-	var b = Board.new(5, 7)
-	b.set_inlet(Vector2i(2, 0), PT.N)
-	b.set_outlet(Vector2i(2, 6), PT.S)
-	var q = PieceQueue.new(0, {PT.Piece.STRAIGHT: 1})  # all straights
-	return GameState.new(b, q)

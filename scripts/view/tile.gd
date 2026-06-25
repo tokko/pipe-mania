@@ -57,7 +57,8 @@ func _draw() -> void:
 		draw_rect(rect, Color(1.0, 0.75, 0.0), false, maxf(2.0, size * 0.06))
 	_draw_marker(rect)
 	if piece != PT.Piece.NONE:
-		var col := Color(0.20, 0.55, 0.90) if wet else Color(0.55, 0.60, 0.65)
+		# Dry pipe = warm brass (clearly a pipe, not the pale touch-highlight); wet = water blue.
+		var col := Color(0.20, 0.55, 0.90) if wet else Color(0.85, 0.72, 0.40)
 		var c := Vector2(size, size) * 0.5
 		var w := maxf(3.0, size * 0.18)
 		for ch in CG.channels_for(piece, rot):

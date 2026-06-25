@@ -61,16 +61,14 @@ func tile_count() -> int:
 
 
 # Tap -> board cell -> cell_tapped signal (the controller, Main, does the actual place()).
+# Handle ONLY the mouse-button press: emulate_mouse_from_touch (on by default, and what the HUD
+# Buttons rely on) turns each finger tap into exactly one emulated mouse event, so handling touch
+# AND mouse would fire twice per tap — placing two deck pieces and landing the one AFTER the preview.
 func _unhandled_input(event: InputEvent) -> void:
-	var pos := Vector2.ZERO
-	if event is InputEventScreenTouch and event.pressed:
-		pos = event.position
-	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		pos = event.position
-	else:
+	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
 		return
 	# Absolute viewport pos vs absolute layout.origin — robust to BoardView offset (shake).
-	var cell: Vector2i = layout.pixel_to_cell(pos)
+	var cell: Vector2i = layout.pixel_to_cell(event.position)
 	if gs.board.in_bounds(cell.x, cell.y):
 		_flash(cell.x, cell.y)  # touch-down highlight
 		cell_tapped.emit(cell.x, cell.y)
