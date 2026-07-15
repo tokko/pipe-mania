@@ -10,11 +10,15 @@ $godot = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $godot) { Write-Error "Godot console binary not found in known locations"; exit 97 }
 
 $proj = Split-Path -Parent $PSScriptRoot
+$logDir = Join-Path $proj ".tmp\godot-logging"
+New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+$importLog = Join-Path $proj ".tmp\godot-logging\import.log"
+$gutLog = Join-Path $proj ".tmp\godot-logging\gut.log"
 
 # First run on a fresh checkout: import so GUT class_names register.
 if (-not (Test-Path (Join-Path $proj ".godot"))) {
-  & $godot --path $proj --headless --import | Out-Null
+  & $godot --log-file $importLog --path $proj --headless --import | Out-Null
 }
 
-& $godot --path $proj --headless -s res://addons/gut/gut_cmdln.gd -gdir=res://test -ginclude_subdirs -gexit
+& $godot --log-file $gutLog --path $proj --headless -s res://addons/gut/gut_cmdln.gd -gdir=res://test -ginclude_subdirs -gexit
 exit $LASTEXITCODE
