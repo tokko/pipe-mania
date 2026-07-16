@@ -24,7 +24,7 @@ func setup(audio_on: bool, ads_removed: bool) -> void:
 
 func _ready() -> void:
 	add_child(UiStyle.backdrop())
-	var vb := UiStyle.centered_column(self)
+	var vb := UiStyle.centered_card(self)
 	vb.add_child(UiStyle.title("SETTINGS", 48))
 	_audio_btn = UiStyle.button(_audio_label())
 	_audio_btn.pressed.connect(_on_audio)
@@ -32,7 +32,7 @@ func _ready() -> void:
 	if _ads_removed:
 		vb.add_child(UiStyle.label("Ads removed - thank you!"))
 	else:
-		var ra := UiStyle.button("Remove Ads")
+		var ra := UiStyle.button("Remove Ads", true)
 		ra.pressed.connect(func() -> void: remove_ads_pressed.emit())
 		vb.add_child(ra)
 	var back := UiStyle.button("Back")

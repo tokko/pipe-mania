@@ -1,8 +1,7 @@
 extends RefCounted
 ## Seeded board generator. Produces a Board with inlet on the left edge and
 ## outlet on the right edge, hazards scattered in the interior, and a guaranteed
-## bomb-safe inlet->outlet corridor (cell-level BFS). If a request is infeasible
-## it reduces hazard density until solvable. No Node deps — headless-testable.
+## bomb-safe inlet->outlet corridor (cell-level BFS). No Node deps — headless-testable.
 ##
 ## Scope note: this proves a *corridor* exists, not that the forced piece queue
 ## can realize it (accepted MVP scope-risk; see docs/ROADMAP.md S1.2).
@@ -10,28 +9,23 @@ extends RefCounted
 const PT = preload("res://scripts/model/pipe_types.gd")
 const Board = preload("res://scripts/model/board.gd")
 
-const MAX_RETRIES := 50
 const _NEIGHBORS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+const _MAX_CANDIDATES := 1000
 
 
 static func generate(seed_: int, w: int, h: int, bombs: int, blocked: int) -> Board:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed_
-	var b := bombs
-	var k := blocked
-	while true:
-		for attempt in MAX_RETRIES:
-			var board := _attempt(rng, w, h, b, k)
-			if is_solvable(board):
-				return board
-		# Infeasible at this density: relax and retry (0 hazards is always solvable).
-		if b > 0:
-			b -= 1
-		elif k > 0:
-			k -= 1
-		else:
-			return _attempt(rng, w, h, 0, 0)
-	return null  # unreachable
+	var reserved_cells := 1 if w == 1 else 2
+	if w <= 0 or h <= 0 or bombs < 0 or blocked < 0 or bombs + blocked > w * h - reserved_cells:
+		return null
+	var candidate_seed := seed_
+	for _candidate in _MAX_CANDIDATES:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = candidate_seed
+		var board := _attempt(rng, w, h, bombs, blocked)
+		if is_solvable(board):
+			return board
+		candidate_seed += 1
+	return null
 
 
 static func _attempt(rng: RandomNumberGenerator, w: int, h: int, bombs: int, blocked: int) -> Board:

@@ -18,7 +18,7 @@ func test_three_board_run_sums_score() -> void:  # acceptance: run-score = Σ bo
 func test_fail_ends_run() -> void:
 	var r = Run.new(1)
 	r.on_clear(4)
-	r.on_fail()
+	r.on_fail(0)
 	assert_true(r.over, "a verify-fail ends the run")
 	assert_eq(r.run_score, 4, "fail does not change the banked run score")
 
@@ -26,27 +26,38 @@ func test_fail_ends_run() -> void:
 func test_fail_lifts_high_score() -> void:
 	var r = Run.new(1)
 	r.on_clear(7)
-	r.on_fail()
-	assert_eq(r.high_score, 7, "high score rises to the run total on fail")
+	r.on_fail(5)
+	assert_eq(r.run_score, 12, "first failure banks the connected route score")
+	assert_eq(r.high_score, 12, "high score rises to the run total on fail")
+
+
+func test_repeated_fail_does_not_bank_route_score_twice() -> void:
+	var r = Run.new(1)
+	r.on_fail(6)
+	r.on_fail(9)
+	assert_eq(r.run_score, 6, "a repeated failure does not bank another route score")
+	assert_eq(r.high_score, 6, "high score reflects only the first failure")
 
 
 func test_smaller_run_does_not_lower_high() -> void:  # control (must be able to go red)
 	var r = Run.new(1)
 	r.high_score = 20
 	r.on_clear(5)
-	r.on_fail()
+	r.on_fail(0)
 	assert_eq(r.high_score, 20, "a smaller run must NOT lower the high score")
 
 
 func test_restart_resets_index_and_score_keeps_high() -> void:  # acceptance: restart resets
 	var r = Run.new(1)
 	r.on_clear(9)
-	r.on_fail()
+	r.on_fail(0)
 	r.restart()
 	assert_eq(r.board_index, 0, "restart resets index to 0")
 	assert_eq(r.run_score, 0, "restart resets score to 0")
 	assert_eq(r.high_score, 9, "high score survives restart")
 	assert_false(r.over, "restart clears the over flag")
+	r.on_clear(2)
+	assert_eq(r.run_score, 2, "restart re-arms score banking")
 
 
 func test_next_board_escalates_grid_with_index() -> void:
@@ -61,7 +72,7 @@ func test_next_board_escalates_grid_with_index() -> void:
 func test_revive_clears_over_on_failed_run() -> void:  # acceptance: revive resumes a dead run
 	var r = Run.new(1)
 	r.on_clear(6)
-	r.on_fail()
+	r.on_fail(0)
 	assert_true(r.over, "run is over before revive")
 	r.revive()
 	assert_false(r.over, "revive clears the over flag")
@@ -70,11 +81,29 @@ func test_revive_clears_over_on_failed_run() -> void:  # acceptance: revive resu
 	assert_eq(r.board_index, 1, "revive does NOT advance the board index")
 
 
+func test_revive_does_not_rebank_failed_score_on_fail() -> void:
+	var r = Run.new(1)
+	r.on_fail(6)
+	r.revive()
+	r.on_fail(6)
+	assert_eq(r.run_score, 6, "revive does not bank the failed board score twice")
+	assert_true(r.over, "the second failure still ends the run")
+
+
+func test_revive_does_not_rebank_failed_score_on_clear() -> void:
+	var r = Run.new(1)
+	r.on_fail(6)
+	r.revive()
+	r.on_clear(6)
+	assert_eq(r.run_score, 6, "revive does not bank the cleared board score twice")
+	assert_false(r.over, "the clear path leaves the revived run live")
+
+
 func test_revive_is_one_per_run() -> void:  # second revive must no-op
 	var r = Run.new(1)
-	r.on_fail()
+	r.on_fail(0)
 	r.revive()
-	r.on_fail()  # die again
+	r.on_fail(0)  # die again
 	r.revive()   # the cap blocks this one
 	assert_true(r.over, "a second revive does not resume the run")
 
@@ -91,7 +120,7 @@ func test_revive_noops_on_live_run() -> void:  # control (must be able to go red
 
 func test_restart_resets_revived() -> void:
 	var r = Run.new(1)
-	r.on_fail()
+	r.on_fail(0)
 	r.revive()
 	r.restart()
 	assert_false(r.revived, "restart re-arms the one-time revive")

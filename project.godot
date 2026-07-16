@@ -23,6 +23,10 @@ Settings="*res://scripts/settings.gd"
 Audio="*res://scripts/audio_cues.gd"
 Services="*res://scripts/services.gd"
 
+[debug]
+
+file_logging/enable_file_logging.pc=false
+
 [display]
 
 window/size/viewport_width=720

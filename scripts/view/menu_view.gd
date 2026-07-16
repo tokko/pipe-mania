@@ -21,10 +21,10 @@ func setup(best: int) -> void:
 
 func _ready() -> void:
 	add_child(UiStyle.backdrop())
-	var vb := UiStyle.centered_column(self)
+	var vb := UiStyle.centered_card(self)
 	vb.add_child(UiStyle.title(Config.GAME_NAME.to_upper()))
 	vb.add_child(UiStyle.label("Best: %d" % _best))
-	var play := UiStyle.button("Play")
+	var play := UiStyle.button("Play", true)
 	play.pressed.connect(func() -> void: play_pressed.emit())
 	vb.add_child(play)
 	var lb := UiStyle.button("Leaderboard")

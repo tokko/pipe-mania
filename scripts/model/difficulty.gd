@@ -15,8 +15,8 @@ static func config(n: int) -> Dictionary:
 		"build_seconds": maxi(8, 25 - n),
 		"grid_w": gw,
 		"grid_h": gh,
-		"bombs": mini(area / 6, 2 + n / 2),
-		"blocked": mini(area / 4, 3 + n / 2),
+		"bombs": 0,
+		"blocked": mini(area / 3, 5 + n),
 		"weights": {
 			PT.Piece.STRAIGHT: maxi(25, 45 - n),
 			PT.Piece.BEND: 40,

@@ -19,7 +19,7 @@ func setup(entries: Array) -> void:
 
 func _ready() -> void:
 	add_child(UiStyle.backdrop())
-	var vb := UiStyle.centered_column(self)
+	var vb := UiStyle.centered_card(self)
 	vb.add_child(UiStyle.title("LEADERBOARD", 48))
 	if _entries.is_empty():
 		vb.add_child(UiStyle.label("No scores yet"))
