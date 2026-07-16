@@ -17,6 +17,8 @@ var _evaluated_score := 0
 var _qualifies := false
 var _can_revive := false
 var _initials: LineEdit
+var _submit_button: Button
+var _submitted := false
 
 
 func _init() -> void:
@@ -29,25 +31,28 @@ func setup(run_score: int, best: int, qualifies: bool, can_revive: bool, evaluat
 	_evaluated_score = evaluated_score
 	_qualifies = qualifies
 	_can_revive = can_revive
+	_submitted = false
 
 
 func _ready() -> void:
 	add_child(UiStyle.backdrop())
 	var vb := UiStyle.centered_card(self)
 	vb.add_child(UiStyle.title("RUN OVER", 56))
-	vb.add_child(UiStyle.label("Score: %d     Best: %d" % [_run_score, _best]))
+	var score := UiStyle.label("Score: %d     Best: %d" % [_run_score, _best])
+	score.name = "RunScore"
+	vb.add_child(score)
 	vb.add_child(UiStyle.label("Connected route: %d points" % _evaluated_score, 24))
 	if _qualifies:
-		vb.add_child(UiStyle.label("New high score! Enter your initials:"))
+		vb.add_child(UiStyle.label("Leaderboard score: enter your initials:"))
 		_initials = LineEdit.new()
 		_initials.max_length = 3
 		_initials.alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_initials.custom_minimum_size = Vector2(180, 56)
 		_initials.text_changed.connect(_on_initials_typed)
 		vb.add_child(_initials)
-		var submit := UiStyle.button("Submit", true)
-		submit.pressed.connect(_submit)
-		vb.add_child(submit)
+		_submit_button = UiStyle.button("Submit", true)
+		_submit_button.pressed.connect(_submit)
+		vb.add_child(_submit_button)
 	if _can_revive:
 		var rv := UiStyle.button("Revive (watch ad)", true)
 		rv.pressed.connect(func() -> void: revive_pressed.emit())
@@ -71,10 +76,14 @@ func _on_initials_typed(t: String) -> void:
 
 
 func _submit() -> void:
+	if _submitted:
+		return
+	_submitted = true
 	var initials := _initials.text.strip_edges() if _initials != null else ""
 	if initials == "":
 		initials = "AAA"
-	_initials.editable = false  # one submit per run-over
+	_initials.editable = false
+	_submit_button.disabled = true
 	initials_submitted.emit(initials)
 
 

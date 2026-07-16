@@ -51,13 +51,21 @@ static func save_tutorial_seen(value: bool) -> void:
 
 static func load_leaderboard() -> Array:
 	var v = _load().get("leaderboard", [])
-	return v if typeof(v) == TYPE_ARRAY else []  # wrong shape -> empty (control), never crashes
+	if typeof(v) != TYPE_ARRAY:
+		return []  # wrong shape -> empty (control), never crashes
+	var valid: Array = []
+	for entry in v:
+		if entry is Dictionary and entry.has("score"):
+			valid.append(entry)
+	valid.sort_custom(func(a, b): return int(a["score"]) > int(b["score"]))
+	return valid.slice(0, _MAX_LEADERBOARD)
 
 
 ## Append an entry (name clamped to 3 upper-case chars), re-sort by score desc, trim to top-10.
-static func add_leaderboard_entry(entry_name: String, score: int) -> void:
+static func add_leaderboard_entry(entry_name: String, score: int, played_on: String = "") -> void:
 	var lb := load_leaderboard()
-	lb.append({"name": entry_name.substr(0, 3).to_upper(), "score": int(score)})
+	var date := played_on if not played_on.is_empty() else Time.get_datetime_string_from_system(false, true).substr(0, 10)
+	lb.append({"name": entry_name.substr(0, 3).to_upper(), "score": int(score), "date": date})
 	lb.sort_custom(func(a, b): return int(a["score"]) > int(b["score"]))
 	if lb.size() > _MAX_LEADERBOARD:
 		lb = lb.slice(0, _MAX_LEADERBOARD)

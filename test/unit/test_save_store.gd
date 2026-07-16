@@ -109,6 +109,71 @@ func test_leaderboard_wrong_shape_returns_empty() -> void:  # control (must be a
 	assert_eq(SaveStore.load_leaderboard().size(), 0, "wrong-shape leaderboard -> empty, no crash")
 
 
+func test_leaderboard_persists_score_and_date() -> void:
+	_clear()
+	SaveStore.add_leaderboard_entry("AAA", 17, "2026-07-16")
+	var entry: Dictionary = SaveStore.load_leaderboard()[0]
+	assert_eq(entry["name"], "AAA")
+	assert_eq(int(entry["score"]), 17)
+	assert_eq(entry["date"], "2026-07-16", "played date survives a reload")
+
+
+func test_leaderboard_stays_high_to_low_with_dates() -> void:
+	_clear()
+	SaveStore.add_leaderboard_entry("LOW", 5, "2026-07-14")
+	SaveStore.add_leaderboard_entry("HIGH", 20, "2026-07-16")
+	SaveStore.add_leaderboard_entry("MID", 12, "2026-07-15")
+	var leaderboard := SaveStore.load_leaderboard()
+	assert_eq(int(leaderboard[0]["score"]), 20)
+	assert_eq(leaderboard[0]["date"], "2026-07-16")
+	assert_eq(int(leaderboard[1]["score"]), 12)
+	assert_eq(int(leaderboard[2]["score"]), 5)
+
+
+func test_legacy_leaderboard_entry_without_date_is_retained() -> void:
+	_clear()
+	var f := FileAccess.open("user://highscore.json", FileAccess.WRITE)
+	f.store_string('{"leaderboard": [{"name": "OLD", "score": 8}]}')
+	f.close()
+	var entry: Dictionary = SaveStore.load_leaderboard()[0]
+	assert_eq(entry["name"], "OLD")
+	assert_eq(int(entry["score"]), 8)
+	assert_false(entry.has("date"), "legacy entry remains readable without invented data")
+
+
+func test_mixed_legacy_leaderboard_loads_valid_sorted_top_ten_entries() -> void:
+	_clear()
+	var entries := [
+		{"name": "LOW", "score": 10},
+		null,
+		{"name": "HIGH", "score": 120},
+		"not-a-dictionary",
+		{"name": "NO_SCORE"},
+		{"name": "S110", "score": 110},
+		{"name": "S100", "score": 100},
+		{"name": "S90", "score": 90},
+		{"name": "S80", "score": 80},
+		{"name": "S70", "score": 70},
+		{"name": "S60", "score": 60},
+		{"name": "S50", "score": 50},
+		{"name": "S40", "score": 40},
+		{"name": "S30", "score": 30},
+		{"name": "S20", "score": 20}
+	]
+	var f := FileAccess.open("user://highscore.json", FileAccess.WRITE)
+	f.store_string(JSON.stringify({"leaderboard": entries}))
+	f.close()
+
+	var leaderboard: Array = SaveStore.load_leaderboard()
+	assert_eq(leaderboard.size(), 10, "invalid legacy entries are filtered and valid scores are capped")
+	var scores := []
+	for entry in leaderboard:
+		assert_true(entry is Dictionary, "loaded leaderboard entries are dictionaries")
+		if entry is Dictionary and entry.has("score"):
+			scores.append(int(entry["score"]))
+	assert_eq(scores, [120, 110, 100, 90, 80, 70, 60, 50, 40, 30], "valid scores load highest to lowest")
+
+
 # --- ads_removed / audio_enabled flags ---
 
 func test_ads_removed_default_false() -> void:
