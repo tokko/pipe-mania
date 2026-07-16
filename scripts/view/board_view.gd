@@ -60,6 +60,14 @@ func tile_count() -> int:
 	return _tiles.size()
 
 
+func tile_at(x: int, y: int):
+	return _tiles[y * gs.board.width + x]
+
+
+func animate_placement(x: int, y: int) -> void:
+	tile_at(x, y).play_placement()
+
+
 # Tap -> board cell -> cell_tapped signal (the controller, Main, does the actual place()).
 # Handle ONLY the mouse-button press: emulate_mouse_from_touch (on by default, and what the HUD
 # Buttons rely on) turns each finger tap into exactly one emulated mouse event, so handling touch

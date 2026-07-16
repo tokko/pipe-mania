@@ -29,12 +29,12 @@ func setup(gs, board_view, evaluated_score: int) -> void:
 # Begin animating the flow. Assumes the caller already called gs.go() (Main._start_flow does).
 # A board that is terminal at the seed (e.g. inlet adjacent to a bomb) resolves immediately,
 # matching resolve()'s pre-step check.
-func start() -> void:
+func start(speed_multiplier: float = 1.0) -> void:
 	if _timer == null:
 		_timer = Timer.new()
-		_timer.wait_time = TICK
 		_timer.timeout.connect(_tick)
 		add_child(_timer)
+	_timer.wait_time = TICK / speed_multiplier
 	var o = _gs.outcome_now()  # untyped _gs -> explicit var (no :=)
 	if o != GameState.Outcome.NONE:
 		_finish(o)

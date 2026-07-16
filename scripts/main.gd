@@ -34,6 +34,8 @@ var _build_remaining := 0.0  # build-phase countdown (E3 wires GO at zero)
 var _clock_started := false  # countdown is frozen until the first placement (never time out before you begin)
 var _tutorial_active := false  # first-run onboarding banner showing (dismissed on first GO)
 var _ui_flow_active := false  # true once the splash/menu screen flow is running (never in PIPE_TEST)
+var _polish_active := false
+var _ambience_time := 0.0
 var _screen: ScreenController  # the screen-flow FSM (non-test branch only)
 var _games_played := 0  # gates the between-runs interstitial (skip the first game of a session)
 
@@ -52,6 +54,7 @@ func _ready() -> void:
 # dev stub (deferred-emit) and a real async SDK drive the exact same grant path.
 func _boot() -> void:
 	_ui_flow_active = true
+	_polish_active = true
 	Services.ad.reward_earned.connect(_on_reward_earned)
 	Services.iap.purchase_succeeded.connect(_on_purchase_succeeded)
 	_screen = ScreenController.new()
@@ -104,18 +107,34 @@ func _mount_board(gs) -> void:
 
 
 func _process(delta: float) -> void:
+	if _polish_active:
+		_ambience_time += delta
+		queue_redraw()
 	# The flow countdown is frozen until the first pipe is placed, so a player examining a
 	# fresh board is never timed out before they start (the "tapping does nothing" trap).
 	if _clock_started and _build_remaining > 0.0:
 		_build_remaining -= delta
 		_hud.set_countdown(maxi(0, ceili(_build_remaining)))
 		if _build_remaining <= 0.0:
-			_start_flow()  # build-countdown expiry (single block; E2 council DIRECTIVE)
+			_start_flow(2.0)  # build-countdown expiry (single block; E2 council DIRECTIVE)
+
+
+func _draw() -> void:
+	if not _polish_active:
+		return
+	var viewport_size := get_viewport_rect().size
+	var center := viewport_size * 0.5
+	for i in 4:
+		var phase := _ambience_time * (0.08 + i * 0.015) + i * 1.7
+		var point := center + Vector2(cos(phase) * viewport_size.x * 0.42, sin(phase * 0.8) * viewport_size.y * 0.35)
+		draw_circle(point, viewport_size.x * (0.10 + i * 0.018), Color(0.01, 0.18, 0.20, 0.10))
+		if i < 3:
+			draw_circle(point + Vector2(18, -14), maxf(1.5, viewport_size.x * 0.007), Color(0.25, 0.92, 0.84, 0.28))
 
 
 # Lock the build and begin the verify flow (GO button or countdown expiry). Guarded so
 # button-then-expiry / re-firing can't double-start.
-func _start_flow() -> void:
+func _start_flow(speed_multiplier: float = 1.0) -> void:
 	if _gs.phase == GameState.Phase.FLOW:
 		return
 	Audio.play("go")
@@ -135,7 +154,7 @@ func _start_flow() -> void:
 		add_child(_animator)
 		_animator.outcome_resolved.connect(_on_outcome)
 	_animator.setup(_gs, _bv, evaluated_score)
-	_animator.start()
+	_animator.start(speed_multiplier)
 
 
 # Verify flow resolved (animator tick loop, or resolve_immediately in the headless gate):
@@ -280,6 +299,8 @@ func place_at(x: int, y: int) -> bool:
 	if _gs.place(x, y):
 		_clock_started = true  # the first placed pipe starts the flow countdown
 		_bv.notify_changed()
+		if _polish_active:
+			_bv.animate_placement(x, y)
 		Audio.play("place")
 		return true
 	_bv.shake()

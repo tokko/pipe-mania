@@ -15,6 +15,8 @@ var highlight: bool = false
 var near_bomb: bool = false
 var port: int = 0  # 0 none, 1 inlet, 2 outlet
 var port_dir: int = 0  # boundary edge (N/E/S/W bitmask)
+var _placement_pop := 0.0
+var _placement_tween: Tween
 
 
 func refresh(cell_type_: int, piece_: int, rot_: int, wet_: bool, highlight_: bool,
@@ -27,6 +29,23 @@ func refresh(cell_type_: int, piece_: int, rot_: int, wet_: bool, highlight_: bo
 	near_bomb = near_bomb_
 	port = port_
 	port_dir = port_dir_
+	queue_redraw()
+
+
+func placement_pop() -> float:
+	return _placement_pop
+
+
+func play_placement() -> void:
+	if _placement_tween != null and _placement_tween.is_valid() and _placement_tween.is_running():
+		_placement_tween.kill()
+	_set_placement_pop(1.0)
+	_placement_tween = create_tween()
+	_placement_tween.tween_method(_set_placement_pop, 1.0, 0.0, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+func _set_placement_pop(value: float) -> void:
+	_placement_pop = value
 	queue_redraw()
 
 
@@ -44,27 +63,36 @@ static func cell_marker(ct: int) -> int:
 
 func _draw() -> void:
 	var rect := Rect2(Vector2.ZERO, Vector2(size, size)).grow(-1.0)
-	var bg := Color(0.12, 0.14, 0.16)
+	draw_rect(Rect2(rect.position + Vector2(0, size * 0.07), rect.size), Color(0.02, 0.07, 0.08, 0.65))
+	var bg := Color(0.08, 0.28, 0.31)
 	match cell_type:
 		PT.Cell.BLOCKED:
-			bg = Color(0.30, 0.30, 0.33)
+			bg = Color(0.25, 0.30, 0.32)
 		PT.Cell.BOMB:
-			bg = Color(0.50, 0.12, 0.12)
+			bg = Color(0.50, 0.14, 0.16)
 	draw_rect(rect, bg)
+	draw_line(rect.position + Vector2(2, 2), rect.position + Vector2(rect.size.x - 2, 2), Color(0.55, 0.95, 0.90, 0.5), maxf(1.0, size * 0.025))
+	draw_line(rect.position + Vector2(2, rect.size.y - 2), rect.position + Vector2(rect.size.x - 2, rect.size.y - 2), Color(0.02, 0.10, 0.12, 0.8), maxf(1.0, size * 0.035))
 	if highlight:
 		draw_rect(rect, Color(1, 1, 1, 0.25))
 	if near_bomb:  # proximity warning outline (orange), readable independent of hue via its border
 		draw_rect(rect, Color(1.0, 0.75, 0.0), false, maxf(2.0, size * 0.06))
 	_draw_marker(rect)
 	if piece != PT.Piece.NONE:
-		# Dry pipe = warm brass (clearly a pipe, not the pale touch-highlight); wet = water blue.
-		var col := Color(0.20, 0.55, 0.90) if wet else Color(0.85, 0.72, 0.40)
+		# Dry pipe = brass/gold; wet = bright aqua, with a dark under-stroke and shine.
+		var col := Color(0.10, 0.88, 0.92) if wet else Color(0.96, 0.64, 0.12)
 		var c := Vector2(size, size) * 0.5
-		var w := maxf(3.0, size * 0.18)
+		var pipe_scale := 1.0 - _placement_pop * 0.24
+		var w := maxf(3.0, size * 0.18) * pipe_scale
 		for ch in CG.channels_for(piece, rot):
 			for d in _DIRS:
 				if ch & d:
-					draw_line(c, c + _edge_off(d) * size * 0.5, col, w)
+					var end := c + _edge_off(d) * size * 0.5 * pipe_scale
+					draw_line(c, end, Color(0.02, 0.09, 0.10, 0.8), w + maxf(2.0, size * 0.055))
+					draw_line(c, end, col, w)
+					draw_line(c, c + (end - c) * 0.8, Color(0.85, 1.0, 1.0, 0.65), maxf(1.0, w * 0.16))
+		if _placement_pop > 0.0:
+			draw_arc(c, size * (0.30 + _placement_pop * 0.16), 0.0, TAU, 24, Color(0.25, 0.95, 1.0, _placement_pop * 0.75), maxf(1.0, size * 0.035))
 	_draw_port(rect)
 
 
