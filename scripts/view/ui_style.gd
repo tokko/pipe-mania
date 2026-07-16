@@ -28,12 +28,56 @@ static func label(text: String, size: int = 30) -> Label:
 	return l
 
 
-static func button(text: String) -> Button:
+static func button(text: String, primary: bool = false) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.custom_minimum_size = BTN_MIN
 	b.add_theme_font_size_override("font_size", 30)
+	b.add_theme_color_override("font_color", BG if primary else TEXT)
+	b.add_theme_color_override("font_hover_color", BG if primary else TEXT)
+	b.add_theme_color_override("font_pressed_color", BG if primary else TEXT)
+	b.add_theme_color_override("font_focus_color", BG if primary else TEXT)
+	b.add_theme_stylebox_override("normal", _button_box(primary, 0.0))
+	b.add_theme_stylebox_override("hover", _button_box(primary, 0.08))
+	b.add_theme_stylebox_override("pressed", _button_box(primary, -0.08))
+	b.add_theme_stylebox_override("focus", _button_box(primary, 0.08))
 	return b
+
+
+static func _button_box(primary: bool, shade: float) -> StyleBoxFlat:
+	var fill := BRASS if primary else Color(0.18, 0.20, 0.23)
+	if shade > 0.0:
+		fill = fill.lightened(shade)
+	elif shade < 0.0:
+		fill = fill.darkened(-shade)
+	var box := StyleBoxFlat.new()
+	box.bg_color = fill
+	box.border_color = BRASS if primary else Color(0.38, 0.40, 0.44)
+	box.set_border_width_all(2)
+	box.set_corner_radius_all(12)
+	box.content_margin_left = 20
+	box.content_margin_right = 20
+	box.content_margin_top = 12
+	box.content_margin_bottom = 12
+	return box
+
+
+static func card() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _card_box())
+	return panel
+
+
+static func _card_box() -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(0.09, 0.11, 0.13)
+	box.border_color = Color(0.48, 0.40, 0.24)
+	box.set_border_width_all(2)
+	box.set_corner_radius_all(24)
+	box.shadow_color = Color(0.0, 0.0, 0.0, 0.35)
+	box.shadow_size = 18
+	box.shadow_offset = Vector2(0, 8)
+	return box
 
 
 ## A full-rect opaque modal backdrop that also swallows pointer events (so taps can't fall through
@@ -59,12 +103,45 @@ static func centered_column(parent: Node) -> VBoxContainer:
 	return vb
 
 
+## A padded, dark raised card centered inside the parent. Adds the full-rect container to `parent`.
+static func centered_card(parent: Node) -> VBoxContainer:
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var panel := card()
+	panel.custom_minimum_size = Vector2(420, 0)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 28)
+	margin.add_theme_constant_override("margin_right", 28)
+	margin.add_theme_constant_override("margin_top", 28)
+	margin.add_theme_constant_override("margin_bottom", 28)
+	var column := VBoxContainer.new()
+	column.alignment = BoxContainer.ALIGNMENT_CENTER
+	column.add_theme_constant_override("separation", 24)
+	margin.add_child(column)
+	panel.add_child(margin)
+	center.add_child(panel)
+	parent.add_child(center)
+	return column
+
+
 ## Top inset (in viewport pixels) for a display cutout/notch; 0 when there is none or headless.
 static func safe_top() -> int:
 	var win := DisplayServer.window_get_size()
 	if win.y <= 0:
 		return 0
 	var inset := DisplayServer.get_display_safe_area().position.y
+	if inset <= 0:
+		return 0
+	return int(inset * 1280.0 / win.y)
+
+
+## Bottom inset (in viewport pixels) for gesture navigation / display cutouts; 0 when there is none or headless.
+static func safe_bottom() -> int:
+	var win := DisplayServer.window_get_size()
+	if win.y <= 0:
+		return 0
+	var safe_area := DisplayServer.get_display_safe_area()
+	var inset := win.y - (safe_area.position.y + safe_area.size.y)
 	if inset <= 0:
 		return 0
 	return int(inset * 1280.0 / win.y)

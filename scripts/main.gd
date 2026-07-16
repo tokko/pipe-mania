@@ -17,6 +17,7 @@ const Run = preload("res://scripts/model/run.gd")
 const SaveStore = preload("res://scripts/save_store.gd")
 const PT = preload("res://scripts/model/pipe_types.gd")
 const ScreenController = preload("res://scripts/screen_controller.gd")
+const UiStyle = preload("res://scripts/view/ui_style.gd")
 
 const VIEW := Vector2i(720, 1280)
 const MIN_CELL := 44
@@ -71,7 +72,7 @@ func _mount_first_board() -> void:
 	_tutorial_active = not SaveStore.load_tutorial_seen()
 	_mount_board(_run.next_board())
 	if _tutorial_active:
-		_hud.set_tutorial("Build a path from inlet to outlet. Longer & shortcut-free = more points. Avoid bombs. Tap GO.")
+		_hud.set_tutorial("Build a path from inlet to outlet. Longer & shortcut-free = more points. Avoid walls. Tap GO.")
 
 
 # The single teardown-safe board-mount path (used by _start_game, board-advance, restart).
@@ -86,7 +87,7 @@ func _mount_board(gs) -> void:
 	_gs = gs
 	_bv = BoardView.new()
 	add_child(_bv)
-	_bv.setup(_gs, VIEW, MIN_CELL, HUD_TOP)
+	_bv.setup(_gs, VIEW, MIN_CELL, HUD_TOP + UiStyle.safe_top())
 	_bv.cell_tapped.connect(_on_cell_tapped)
 	_hud = HUD.new()
 	add_child(_hud)
@@ -98,6 +99,8 @@ func _mount_board(gs) -> void:
 	_clock_started = false  # don't tick until the player places their first pipe
 	_hud.set_countdown(c.build_seconds)
 	_hud.set_scores(_run.run_score, _run.high_score)
+	if OS.get_environment("PIPE_TEST") == "":
+		Audio.set_music(Audio.MusicTrack.BUILD)
 
 
 func _process(delta: float) -> void:
@@ -116,6 +119,8 @@ func _start_flow() -> void:
 	if _gs.phase == GameState.Phase.FLOW:
 		return
 	Audio.play("go")
+	if OS.get_environment("PIPE_TEST") == "":
+		Audio.set_music(Audio.MusicTrack.FLOW)
 	if _hud != null:
 		_hud.show_go(false)  # GO only applies during BUILD
 	if _tutorial_active:  # first GO (or countdown-expiry) dismisses the tutorial, once
@@ -123,12 +128,13 @@ func _start_flow() -> void:
 		_tutorial_active = false
 		if _hud != null:
 			_hud.clear_tutorial()
+	var evaluated_score: int = _gs.dry_route_length()
 	_gs.go()
 	if _animator == null:
 		_animator = FlowAnimator.new()
 		add_child(_animator)
 		_animator.outcome_resolved.connect(_on_outcome)
-	_animator.setup(_gs, _bv)
+	_animator.setup(_gs, _bv, evaluated_score)
 	_animator.start()
 
 
@@ -157,11 +163,12 @@ func _on_outcome(outcome: int, score: int) -> void:
 		_run.on_clear(score)
 		_advance_board()  # instant advance for now; a clear-celebration beat is E6 juice
 	else:
-		_run.on_fail()
+		_run.on_fail(score)
+		Audio.set_music(Audio.MusicTrack.NONE)
 		SaveStore.save_high(_run.high_score)
 		_hud.set_outcome(_run_end_text())
 		if _ui_flow_active:  # surface the run-over screen (never in the headless gate)
-			_screen.show_runover(_run)
+			_screen.show_runover(_run, score)
 
 
 func _advance_board() -> void:
@@ -193,6 +200,7 @@ func _maybe_show_interstitial() -> void:
 # Tear the active game down to nothing (returning to the menu): stop the animator, free the board
 # and HUD, drop the run. Mirrors _mount_board's teardown.
 func teardown_game() -> void:
+	Audio.set_music(Audio.MusicTrack.NONE)
 	if _animator != null:
 		_animator.stop()
 	if _bv != null:
@@ -463,6 +471,20 @@ func _run_scripted() -> void:
 	_on_outcome(GameState.Outcome.LEAK, 0)  # verify-fail ends the run
 	print("RUN_OVER=", _run.over, " HIGH=", _run.high_score, " SAVED=", SaveStore.load_high())
 	print("RUNEND_LABEL=", _hud.outcome_text())
+	# Scoring seam: a connected legacy-bomb route keeps its GO-time score through failure.
+	if d and d.file_exists("highscore.json"):
+		d.remove("highscore.json")
+	_run = Run.new(23)
+	_run.high_score = SaveStore.load_high()
+	_gs = _flow_row(1)
+	_bv = BoardView.new()
+	add_child(_bv)
+	_bv.setup(_gs, VIEW, MIN_CELL, 0)
+	_start_flow()
+	_animator.resolve_immediately()
+	print("LEGACY_BOMB_FLOW_SCORE=", _last_score)
+	print("LEGACY_BOMB_RUN_SCORE=", _run.run_score, " HIGH=", _run.high_score,
+		" SAVED=", SaveStore.load_high())
 	_restart()
 	print("AFTER_RESTART INDEX=", _run.board_index, " RUN=", _run.run_score, " HIGH=", _run.high_score)
 	print("HUD_SCORE_AFTER_RESTART=", _hud.score_text())
@@ -571,7 +593,7 @@ func _run_scripted() -> void:
 	# revive grant: reward_earned on a live over-run clears `over` and preserves the banked run score
 	_run = Run.new(3)
 	_run.on_clear(7)  # run_score = 7
-	_run.on_fail()    # over
+	_run.on_fail(0)    # over
 	_on_reward_earned("revive")
 	print("REVIVE_OVER=", _run.over, " REVIVE_RUN_SCORE=", _run.run_score)  # expect false 7
 	# interstitial seam: shown on a replay when ads are NOT removed, suppressed when they are

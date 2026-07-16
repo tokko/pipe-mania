@@ -14,6 +14,7 @@ var run_score: int = 0
 var high_score: int = 0
 var over: bool = false
 var revived: bool = false  # a run may be revived once (rewarded-ad continue)
+var board_score_banked: bool = false
 
 
 func _init(seed_: int = 0) -> void:
@@ -22,12 +23,20 @@ func _init(seed_: int = 0) -> void:
 
 ## A cleared board: bank its score and advance to the next (harder) board.
 func on_clear(score: int) -> void:
-	run_score += score
+	if not board_score_banked:
+		run_score += score
+		board_score_banked = true
 	board_index += 1
+	board_score_banked = false
 
 
-## A verify-fail (LEAK/BOMB): end the run, lift the high score (never lower it).
-func on_fail() -> void:
+## A verify-fail (LEAK/BOMB): bank its score, end the run, lift the high score (never lower it).
+func on_fail(score: int) -> void:
+	if over:
+		return
+	if not board_score_banked:
+		run_score += score
+		board_score_banked = true
 	over = true
 	high_score = maxi(high_score, run_score)
 
@@ -62,3 +71,4 @@ func restart() -> void:
 	run_score = 0
 	over = false
 	revived = false
+	board_score_banked = false

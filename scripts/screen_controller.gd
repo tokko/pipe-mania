@@ -51,10 +51,10 @@ func go_menu() -> void:
 	_screen_view = _swap(_screen_view, v)
 
 
-func show_runover(run) -> void:
+func show_runover(run, evaluated_score: int) -> void:
 	_pending_score = run.run_score
 	var v := RunoverView.new()
-	v.setup(run.run_score, run.high_score, _qualifies(run.run_score), not run.revived)
+	v.setup(run.run_score, run.high_score, _qualifies(run.run_score), not run.revived, evaluated_score)
 	_overlay = _swap(_overlay, v)
 
 
@@ -117,6 +117,7 @@ func _on_close_modal() -> void:
 
 func _on_settings_audio_toggled() -> void:
 	Settings.toggle_audio()
+	Audio.sync_audio_enabled()
 
 
 func _on_settings_remove_ads() -> void:

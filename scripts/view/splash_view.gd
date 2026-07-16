@@ -15,7 +15,7 @@ func _init() -> void:
 
 func _ready() -> void:
 	add_child(UiStyle.backdrop())
-	var vb := UiStyle.centered_column(self)
+	var vb := UiStyle.centered_card(self)
 	var icon := TextureRect.new()
 	icon.texture = preload("res://icon.svg")
 	icon.custom_minimum_size = Vector2(160, 160)

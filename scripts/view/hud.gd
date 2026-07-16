@@ -20,24 +20,40 @@ var _preview_label: Label
 var _outcome_label: Label
 var _score_label: Label
 var _tutorial_label: Label
+var _status_content: Control
 var _current_tile: Tile  # visible preview of the piece you're about to place
 var _go_btn: Button       # hidden when flow starts (GO only makes sense during BUILD)
 
 
 func _ready() -> void:
 	var st := UiStyle.safe_top()  # push the top UI below a display cutout (0 without one / headless)
+	var sb := UiStyle.safe_bottom()  # keep the bottom action bar above gesture navigation
 	# Flow countdown is the hero of the build phase — large and top-left so it never gets lost.
-	_countdown_label = _mk_label(Vector2(16, 8 + st))
-	_countdown_label.add_theme_font_size_override("font_size", 40)
-	_score_label = _mk_label(Vector2(16, 60 + st))
-	_route_label = _mk_label(Vector2(16, 90 + st))
-	_preview_label = _mk_label(Vector2(16, 118 + st))
-	_outcome_label = _mk_label(Vector2(260, 60 + st))
-	_mk_label(Vector2(470, 12 + st)).text = "Place:"  # label above the current-piece preview
+	var status_panel := UiStyle.card()
+	status_panel.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	status_panel.offset_left = 12
+	status_panel.offset_right = -12
+	status_panel.offset_top = 8 + st
+	status_panel.offset_bottom = 156 + st
+	status_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(status_panel)
+	_status_content = Control.new()
+	_status_content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_status_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	status_panel.add_child(_status_content)
+	_countdown_label = _mk_label(Vector2(12, 4), 44)
+	_score_label = _mk_label(Vector2(12, 56), 26)
+	_route_label = _mk_label(Vector2(12, 84), 24)
+	_preview_label = _mk_label(Vector2(12, 112), 22)
+	_outcome_label = _mk_label(Vector2(260, 76), 22)
+	var place_label := _mk_label(Vector2(432, 8), 20)
+	place_label.text = "PLACE"
+	place_label.size = Vector2(88, 24)
+	place_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_current_tile = Tile.new()
-	_current_tile.size = 96
-	_current_tile.position = Vector2(470, 40 + st)
-	add_child(_current_tile)
+	_current_tile.size = 72
+	_current_tile.position = Vector2(440, 34)
+	_status_content.add_child(_current_tile)
 	# Onboarding banner: anchored just above the bottom bar, word-wrapped so it never runs off-screen.
 	_tutorial_label = Label.new()
 	_tutorial_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
@@ -52,17 +68,17 @@ func _ready() -> void:
 	# magic y). Post-run actions (Revive/Leaderboard/...) live on the run-over screen, not here.
 	var bar := Control.new()
 	bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	bar.offset_top = -92
-	bar.offset_bottom = -16
+	bar.offset_top = -92 - sb
+	bar.offset_bottom = -16 - sb
 	add_child(bar)
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 16)
 	hb.position = Vector2(16, 0)
 	bar.add_child(hb)
-	_go_btn = UiStyle.button("GO")
+	_go_btn = UiStyle.button("START FLOW", true)
 	_go_btn.pressed.connect(func() -> void: go_pressed.emit())
 	hb.add_child(_go_btn)
-	var menu_btn := UiStyle.button("Menu")
+	var menu_btn := UiStyle.button("MENU")
 	menu_btn.pressed.connect(func() -> void: menu_pressed.emit())
 	hb.add_child(menu_btn)
 
@@ -73,10 +89,11 @@ func show_go(shown: bool) -> void:
 		_go_btn.visible = shown
 
 
-func _mk_label(pos: Vector2) -> Label:
-	var l := Label.new()
+func _mk_label(pos: Vector2, size: int) -> Label:
+	var l := UiStyle.label("", size)
 	l.position = pos
-	add_child(l)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_status_content.add_child(l)
 	return l
 
 

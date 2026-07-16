@@ -16,16 +16,16 @@ run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
 
-[debug]
-
-file_logging/enable_file_logging.pc=false
-
 [autoload]
 
 Config="*res://scripts/config.gd"
 Settings="*res://scripts/settings.gd"
 Audio="*res://scripts/audio_cues.gd"
 Services="*res://scripts/services.gd"
+
+[debug]
+
+file_logging/enable_file_logging.pc=false
 
 [display]
 

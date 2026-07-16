@@ -13,13 +13,17 @@ const TICK := 0.12  # cosmetic water speed (not a difficulty knob — design doc
 var _gs
 var _bv
 var _timer: Timer
+var _evaluated_score := 0
+var _resolved := false
 
 
-func setup(gs, board_view) -> void:
+func setup(gs, board_view, evaluated_score: int) -> void:
 	if _timer != null:
 		_timer.stop()  # a reload re-points refs; a prior Timer must not double-drive the new board
 	_gs = gs
 	_bv = board_view
+	_evaluated_score = evaluated_score
+	_resolved = false
 
 
 # Begin animating the flow. Assumes the caller already called gs.go() (Main._start_flow does).
@@ -47,9 +51,12 @@ func _tick() -> void:
 
 
 func _finish(outcome: int) -> void:
+	if _resolved:
+		return
+	_resolved = true
 	if _timer != null:
 		_timer.stop()
-	outcome_resolved.emit(outcome, _gs.score())
+	outcome_resolved.emit(outcome, _evaluated_score)
 
 
 # Stop the flow Timer without emitting (e.g. a board reload / Restart mid-animation, so a stray
@@ -70,4 +77,4 @@ func resolve_immediately() -> void:
 		_timer.stop()
 	var o = _gs.resolve()
 	_bv.refresh()
-	outcome_resolved.emit(o, _gs.score())
+	_finish(o)
