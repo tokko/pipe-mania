@@ -4,6 +4,7 @@ Autonomous `/crunch` build. Resume pointer: `.auto-sprint-board/crunch-state.jso
 Spec: `docs/DESIGN.md` · Backlog: `docs/ROADMAP.md` · Epic plan: `docs/epics/core-model.md`.
 
 ## Current state
+- Codex-safe visible launch: `& .\tools\run-game.ps1 -QuitAfter 180`; headless gate: `& .\tools\run-gate.ps1`. Both isolate Godot user data beneath `.tmp`.
 - Gate: `tools/run-gate.ps1` (headless GUT). Green — 121 tests, 120 pass + 1 quarantined control.
 - **Full-game shell SHIPPED (`0b719e1` + teardown BLOCKER fix):** splash → start menu → game → run-over, plus leaderboard/settings modals — code-built `CanvasLayer` views (`scripts/view/*_view.gd` + shared `scripts/view/ui_style.gd`) driven by `scripts/screen_controller.gd` FSM (mounted only on the non-test branch; `PIPE_TEST` entry untouched). Local top-10 leaderboard (`SaveStore`, 3-initial entry). Monetization UX: persisted Remove-Ads + interstitial suppression, callback-driven Revive — all behind `Services` real-or-stub dispatch (`Engine.has_singleton`). Procedural audio (`audio_cues.gd` bakes `AudioStreamWAV`). HUD shrunk to a responsive bottom GO/Menu bar. Whole flow verified on-device (`3A191FDJH000K4`) incl. Revive-resume + place→Menu (no crash).
 - **Real ad/IAP/online-leaderboard wiring DEFERRED (needs accounts):** `Services` uses the dev stub until the v2 AdMob/Billing plugins are present; go-live checklist in `docs/MONETIZATION_SETUP.md`. `use_gradle_build` stays `false` (prebuilt-template recipe unchanged).
