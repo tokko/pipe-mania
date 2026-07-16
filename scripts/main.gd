@@ -60,6 +60,13 @@ func _boot() -> void:
 	_screen.start()
 
 
+func _notification(what: int) -> void:
+	if OS.get_environment("PIPE_TEST") != "" or what != NOTIFICATION_WM_GO_BACK_REQUEST:
+		return
+	if not _screen.handle_go_back():
+		get_tree().quit()
+
+
 func _start_game() -> void:
 	_run = Run.new(randi())
 	_run.high_score = SaveStore.load_high()
@@ -572,8 +579,24 @@ func _run_scripted() -> void:
 	print("SCREEN_AFTER_PLAY=", _screen.screen_label())  # expect GAME (board mounted, no overlay)
 	_on_outcome(GameState.Outcome.LEAK, 0)  # a real run-end must raise the run-over screen
 	print("SCREEN_AFTER_LEAK=", _screen.screen_label())  # expect RUNOVER
-	# qualification: a positive score on a short board qualifies; a full board of higher scores does not
+	# Leaderboard submission follows the mounted run-over controller handoff, then restores state.
 	SaveStore.clear_leaderboard()
+	var leaderboard_run := Run.new(47)
+	leaderboard_run.on_clear(12)
+	_screen.show_runover(leaderboard_run, 3)
+	_screen._on_initials_submitted("AAA")
+	var saved_entries := SaveStore.load_leaderboard()
+	var saved_entry: Dictionary = saved_entries[0]
+	assert(saved_entry["name"] == "AAA")
+	assert(int(saved_entry["score"]) == 12)
+	var saved_date := str(saved_entry.get("date", ""))
+	var date_pattern := RegEx.new()
+	date_pattern.compile("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+	assert(date_pattern.search(saved_date) != null)
+	print("LEADERBOARD_SUBMISSION=", saved_entry["name"], " SCORE=", int(saved_entry["score"]),
+		" DATE=", saved_entry["date"])
+	SaveStore.clear_leaderboard()
+	# qualification: a positive score on a short board qualifies; a full board of higher scores does not
 	print("RUNOVER_QUALIFIES=", _screen._qualifies(5))  # expect true
 	for _i in 10:
 		SaveStore.add_leaderboard_entry("ZZZ", 100)

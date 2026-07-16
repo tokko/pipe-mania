@@ -115,6 +115,13 @@ func _on_close_modal() -> void:
 	_modal = _swap(_modal, null)
 
 
+func handle_go_back() -> bool:
+	if _modal == null:
+		return false
+	_on_close_modal()
+	return true
+
+
 func _on_settings_audio_toggled() -> void:
 	Settings.toggle_audio()
 	Audio.sync_audio_enabled()
