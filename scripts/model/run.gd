@@ -45,7 +45,10 @@ func on_fail(score: int) -> void:
 ## seeded, difficulty-weighted piece queue (the per-board mix the old Main dropped).
 func next_board() -> GameState:
 	var c = Difficulty.config(board_index)
-	var board = BoardGen.generate(run_seed + board_index, c.grid_w, c.grid_h, c.bombs, c.blocked)
+	var blocked_rng := RandomNumberGenerator.new()
+	blocked_rng.seed = run_seed + board_index
+	var blocked := blocked_rng.randi_range(4, 10)
+	var board = BoardGen.generate(run_seed + board_index, c.grid_w, c.grid_h, c.bombs, blocked)
 	var q = PieceQueue.new(run_seed + board_index, c.weights)
 	return GameState.new(board, q)
 

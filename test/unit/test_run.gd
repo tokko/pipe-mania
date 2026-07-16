@@ -3,7 +3,18 @@ extends "res://addons/gut/test.gd"
 ## per-board score, ends on a verify-fail; restart keeps the high score.
 
 const Run = preload("res://scripts/model/run.gd")
+const Board = preload("res://scripts/model/board.gd")
 const GameState = preload("res://scripts/model/game_state.gd")
+const PT = preload("res://scripts/model/pipe_types.gd")
+
+
+func _count_blocked(board: Board) -> int:
+	var count := 0
+	for y in board.height:
+		for x in board.width:
+			if board.cell_at(x, y) == PT.Cell.BLOCKED:
+				count += 1
+	return count
 
 
 func test_three_board_run_sums_score() -> void:  # acceptance: run-score = Σ board scores
@@ -67,6 +78,21 @@ func test_next_board_escalates_grid_with_index() -> void:
 	var late = r.next_board()  # index 9
 	assert_true(late.board.width >= early.board.width, "grid width grows or holds with index")
 	assert_true(late.board.height > early.board.height, "grid height escalates by index 9")
+
+
+func test_next_board_blocked_count_is_seed_deterministic_and_varies() -> void:
+	var counts := {}
+	for seed in range(1, 33):
+		var first_run = Run.new(seed)
+		var second_run = Run.new(seed)
+		var first_board: Board = first_run.next_board().board
+		var second_board: Board = second_run.next_board().board
+		var count := _count_blocked(first_board)
+		assert_eq(count, _count_blocked(second_board), "seed %d is deterministic" % seed)
+		assert_gte(count, 4, "seed %d has at least 4 blocked cells" % seed)
+		assert_lte(count, 10, "seed %d has at most 10 blocked cells" % seed)
+		counts[count] = true
+	assert_gte(counts.size(), 2, "blocked counts vary across run seeds")
 
 
 func test_revive_clears_over_on_failed_run() -> void:  # acceptance: revive resumes a dead run

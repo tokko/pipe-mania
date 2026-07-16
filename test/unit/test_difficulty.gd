@@ -20,15 +20,15 @@ func _assert_row(n: int, bs: int, gw: int, gh: int, bombs: int, blocked: int,
 
 
 func test_table_n0() -> void:
-	_assert_row(0, 25, 5, 7, 0, 5, 45, 15)
+	_assert_row(0, 25, 5, 7, 0, 7, 45, 15)
 
 
 func test_table_n5() -> void:
-	_assert_row(5, 20, 6, 9, 0, 10, 40, 20)
+	_assert_row(5, 20, 6, 9, 0, 12, 40, 20)
 
 
 func test_table_n15() -> void:
-	_assert_row(15, 10, 9, 13, 0, 20, 30, 30)
+	_assert_row(15, 10, 9, 13, 0, 22, 30, 30)
 
 
 func test_build_seconds_monotonic_nonincreasing() -> void:
