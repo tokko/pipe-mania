@@ -70,8 +70,8 @@ func _notification(what: int) -> void:
 		get_tree().quit()
 
 
-func _start_game() -> void:
-	_run = Run.new(randi())
+func _start_game(mode: int = Run.Mode.EASY) -> void:
+	_run = Run.new(randi(), mode)
 	_run.high_score = SaveStore.load_high()
 	_mount_first_board()
 
@@ -104,10 +104,10 @@ func _mount_board(gs) -> void:
 	_hud.bind(_bv)
 	_hud.go_pressed.connect(_start_flow)
 	_hud.menu_pressed.connect(_on_menu)
-	var c = Difficulty.config(_run.board_index)  # _mount_board is only ever called after _run is set
-	_build_remaining = float(c.build_seconds)
+	var build_seconds := _run.build_seconds()
+	_build_remaining = float(build_seconds)
 	_clock_started = false  # don't tick until the player places their first pipe
-	_hud.set_countdown(c.build_seconds)
+	_hud.set_countdown(build_seconds)
 	_hud.set_scores(_run.run_score, _run.high_score)
 	if OS.get_environment("PIPE_TEST") == "":
 		Audio.set_music(Audio.MusicTrack.BUILD)
@@ -210,9 +210,9 @@ func _restart() -> void:
 
 # --- screen-flow lifecycle (called by ScreenController on the non-test branch) ---
 
-func start_game() -> void:
+func start_game(mode: int = Run.Mode.EASY) -> void:
 	_maybe_show_interstitial()  # between-runs ad seam (suppressed when ads removed / first game)
-	_start_game()
+	_start_game(mode)
 
 
 # Interstitial between runs: shown on the 2nd+ game of a session, suppressed once ads are removed.
@@ -497,7 +497,10 @@ func _run_scripted() -> void:
 	print("BOARD3_DIMS=", Vector2i(_gs.board.width, _gs.board.height), " EXP=", Vector2i(c3.grid_w, c3.grid_h))
 	print("RUN_SCORE=", _run.run_score, " INDEX=", _run.board_index)  # expect 15, 3
 	_on_outcome(GameState.Outcome.LEAK, 0)  # verify-fail ends the run
-	print("RUN_OVER=", _run.over, " HIGH=", _run.high_score, " SAVED=", SaveStore.load_high())
+	var saved_high := SaveStore.load_high()
+	print("RUN_OVER=", _run.over, " HIGH=", _run.high_score, " SAVED=", saved_high)
+	assert(_run.over and _run.high_score == 15 and saved_high == 15,
+		"PIPE_TEST score/run-over proof did not persist the displayed total")
 	print("RUNEND_LABEL=", _hud.outcome_text())
 	# Scoring seam: a connected legacy-bomb route keeps its GO-time score through failure.
 	if d and d.file_exists("highscore.json"):
@@ -596,10 +599,58 @@ func _run_scripted() -> void:
 	print("SCREEN_SPLASH=", _screen.screen_label())  # expect SPLASH
 	_screen._on_splash_dismissed()
 	print("SCREEN_AFTER_SPLASH=", _screen.screen_label())  # expect MENU
-	_screen._on_menu_play()
-	print("SCREEN_AFTER_PLAY=", _screen.screen_label())  # expect GAME (board mounted, no overlay)
+	SaveStore.save_high(0)
+	SaveStore.clear_leaderboard()
+	var run_before_selection := _run
+	_screen._screen_view.emit_signal("play_pressed")  # mounted MenuView -> selector
+	var selector_shown := _screen.screen_label() == "DIFFICULTY" and _run == run_before_selection
+	print("SCREEN_AFTER_PLAY=", _screen.screen_label(),
+		" RUN_UNCHANGED=", _run == run_before_selection)  # expect DIFFICULTY + true
+	assert(selector_shown, "PIPE_TEST missing selector marker: SCREEN_AFTER_PLAY")
+	_screen._screen_view.emit_signal("difficulty_selected", Run.Mode.MEDIUM)  # mounted DifficultyView
+	var medium_timer := "<missing>" if _hud == null else _hud.countdown_text()
+	var medium_started := _screen.screen_label() == "GAME" \
+		and _run != run_before_selection and _run.mode == Run.Mode.MEDIUM \
+		and medium_timer == "Flow in 60s"
+	print("MEDIUM_STARTED=", medium_started, " TIMER=", medium_timer)  # expect true + Flow in 60s
+	assert(medium_started, "PIPE_TEST missing selector marker: MEDIUM_STARTED")
+	# Medium's real run-end path must carry one integer total through every displayed/persisted sink.
+	_on_outcome(GameState.Outcome.CLEARED, 2)  # aggregate raw total 2 -> displayed Medium total 3
+	var medium_total := _run.run_score
+	var medium_hud := _hud.score_text()
+	print("MEDIUM_HUD_TOTAL=", medium_hud, " INTEGER_TOTAL=", medium_total)
+	assert(medium_total == 3 and medium_hud == "Score: 3  Best: 0",
+		"PIPE_TEST Medium total did not reach the HUD as an integer")
+	_on_outcome(GameState.Outcome.LEAK, 0)
+	var medium_runover_total := _screen._pending_score
+	print("MEDIUM_RUNOVER_TOTAL=", medium_runover_total, " SCREEN=", _screen.screen_label())
+	assert(_screen.screen_label() == "RUNOVER" and medium_runover_total == medium_total,
+		"PIPE_TEST Medium total did not reach run-over")
+	var medium_saved_high := SaveStore.load_high()
+	print("MEDIUM_SAVED_HIGH=", medium_saved_high)
+	assert(medium_saved_high == medium_total, "PIPE_TEST Medium total did not persist as high score")
+	_screen._on_initials_submitted("MED")
+	var medium_leaderboard := SaveStore.load_leaderboard()
+	var medium_leaderboard_total := -1
+	if not medium_leaderboard.is_empty():
+		var medium_entry: Dictionary = medium_leaderboard[0]
+		medium_leaderboard_total = int(medium_entry.get("score", -1))
+	print("MEDIUM_LEADERBOARD_TOTAL=", medium_leaderboard_total)
+	assert(medium_leaderboard_total == medium_total,
+		"PIPE_TEST Medium total did not reach leaderboard")
 	_on_outcome(GameState.Outcome.LEAK, 0)  # a real run-end must raise the run-over screen
 	print("SCREEN_AFTER_LEAK=", _screen.screen_label())  # expect RUNOVER
+	_screen._overlay.emit_signal("new_game_pressed")  # mounted RunoverView -> selector
+	var selector_after_runover := _screen.screen_label() == "DIFFICULTY"
+	print("SCREEN_AFTER_NEW_GAME=", _screen.screen_label())  # expect DIFFICULTY
+	assert(selector_after_runover, "PIPE_TEST missing selector marker: SCREEN_AFTER_NEW_GAME")
+	_screen._screen_view.emit_signal("difficulty_selected", Run.Mode.HARD)  # mounted DifficultyView
+	var hard_timer := "<missing>" if _hud == null else _hud.countdown_text()
+	var hard_started := _screen.screen_label() == "GAME" and _run.mode == Run.Mode.HARD \
+		and hard_timer == "Flow in 30s"
+	print("HARD_STARTED=", hard_started,
+		" TIMER=", hard_timer)  # expect true + Flow in 30s
+	assert(hard_started, "PIPE_TEST missing selector marker: HARD_STARTED")
 	# Leaderboard submission follows the mounted run-over controller handoff, then restores state.
 	SaveStore.clear_leaderboard()
 	var leaderboard_run := Run.new(47)
@@ -607,9 +658,12 @@ func _run_scripted() -> void:
 	_screen.show_runover(leaderboard_run, 3)
 	_screen._on_initials_submitted("AAA")
 	var saved_entries := SaveStore.load_leaderboard()
-	var saved_entry: Dictionary = saved_entries[0]
-	assert(saved_entry["name"] == "AAA")
-	assert(int(saved_entry["score"]) == 12)
+	var saved_entry: Dictionary = {}
+	if not saved_entries.is_empty():
+		saved_entry = saved_entries[0]
+	assert(not saved_entries.is_empty(), "PIPE_TEST leaderboard submission produced no entry")
+	assert(str(saved_entry.get("name", "")) == "AAA")
+	assert(int(saved_entry.get("score", -1)) == 12)
 	var saved_date := str(saved_entry.get("date", ""))
 	var date_pattern := RegEx.new()
 	date_pattern.compile("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")

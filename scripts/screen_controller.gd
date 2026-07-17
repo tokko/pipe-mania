@@ -7,6 +7,7 @@ extends Node
 
 const SplashView = preload("res://scripts/view/splash_view.gd")
 const MenuView = preload("res://scripts/view/menu_view.gd")
+const DifficultyView = preload("res://scripts/view/difficulty_view.gd")
 const RunoverView = preload("res://scripts/view/runover_view.gd")
 const LeaderboardView = preload("res://scripts/view/leaderboard_view.gd")
 const SettingsView = preload("res://scripts/view/settings_view.gd")
@@ -76,13 +77,21 @@ func _on_splash_dismissed() -> void:
 
 
 func _on_menu_play() -> void:
-	_screen_view = _swap(_screen_view, null)
-	_main.start_game()
+	_show_difficulty()
 
 
 func _on_runover_new_game() -> void:
+	_show_difficulty()
+
+
+func _show_difficulty() -> void:
 	_overlay = _swap(_overlay, null)
-	_main.start_game()
+	_screen_view = _swap(_screen_view, DifficultyView.new())
+
+
+func _on_difficulty_selected(mode: int) -> void:
+	_screen_view = _swap(_screen_view, null)
+	_main.start_game(mode)
 
 
 func _on_runover_revive() -> void:
@@ -140,6 +149,8 @@ func screen_label() -> String:
 		return "RUNOVER"
 	if _screen_view is SplashView:
 		return "SPLASH"
+	if _screen_view is DifficultyView:
+		return "DIFFICULTY"
 	if _screen_view is MenuView:
 		return "MENU"
 	return "GAME"
