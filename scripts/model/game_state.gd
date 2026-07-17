@@ -271,7 +271,7 @@ func mark_wet(x: int, y: int) -> void:
 
 ## Place the current (forced) piece at (x,y), oriented as the deck dealt it (no manual
 ## rotation — classic Pipe Mania). Returns true on success. Rejected outside BUILD, off
-## an OPEN cell, or onto already-wet pipe. Dry pipe may be freely overwritten.
+## an OPEN cell, or onto an already placed pipe.
 func place(x: int, y: int) -> bool:
 	if phase != Phase.BUILD:
 		return false
@@ -280,7 +280,7 @@ func place(x: int, y: int) -> bool:
 	if board.cell_at(x, y) != PT.Cell.OPEN:
 		return false
 	var idx := y * board.width + x
-	if _wet[idx] != 0:
+	if _ptype[idx] != PT.Piece.NONE:
 		return false
 	_ptype[idx] = queue.current()
 	_prot[idx] = queue.current_rot()

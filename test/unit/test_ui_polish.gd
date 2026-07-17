@@ -50,9 +50,13 @@ func test_normal_route_invalid_placement_does_not_start_pop() -> void:
 	fixture["main"]._polish_active = true
 	var tile = _tile(fixture)
 
+	Audio.last_id = ""
 	assert_false(fixture["main"].place_at(1, 1))
 	assert_eq(fixture["game_state"].pipe_at(1, 1), PT.Piece.NONE)
 	assert_eq(tile.placement_pop(), 0.0)
+	assert_eq(Audio.last_id, "sfx_invalid")
+	await get_tree().create_timer(0.02).timeout
+	assert_gt(fixture["board_view"].position.x, 0.0, "a blocked placement shakes the board")
 
 
 func test_scripted_route_successful_placement_does_not_start_pop() -> void:
@@ -65,15 +69,15 @@ func test_scripted_route_successful_placement_does_not_start_pop() -> void:
 	assert_eq(tile.placement_pop(), 0.0, "PIPE_TEST path must not create presentation tweens")
 
 
-func test_normal_route_dry_overwrite_keeps_pop_active() -> void:
+func test_normal_route_occupied_pipe_uses_wall_invalid_feedback() -> void:
 	var fixture := _fixture(false)
 	fixture["main"]._polish_active = true
-	var tile = _tile(fixture)
 
 	assert_true(fixture["main"].place_at(1, 1))
-	await get_tree().create_timer(0.12).timeout
-	assert_gt(tile.placement_pop(), 0.0, "the first placement pop must still be active before overwrite")
-
-	assert_true(fixture["main"].place_at(1, 1))
+	var placed_piece = fixture["game_state"].pipe_at(1, 1)
+	Audio.last_id = ""
+	assert_false(fixture["main"].place_at(1, 1))
+	assert_eq(fixture["game_state"].pipe_at(1, 1), placed_piece)
+	assert_eq(Audio.last_id, "sfx_invalid")
 	await get_tree().create_timer(0.08).timeout
-	assert_gt(tile.placement_pop(), 0.0, "overwriting a dry pipe must keep its placement pop active")
+	assert_gt(fixture["board_view"].position.x, 0.0, "an occupied placement uses the wall shake")
