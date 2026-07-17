@@ -150,3 +150,69 @@ func test_restart_resets_revived() -> void:
 	r.revive()
 	r.restart()
 	assert_false(r.revived, "restart re-arms the one-time revive")
+
+
+func test_easy_mode_uses_ninety_seconds_and_one_x_score() -> void:
+	var r = Run.new(1, Run.Mode.EASY)
+	assert_eq(r.build_seconds(), 90)
+	r.on_clear(7)
+	assert_eq(r.run_score, 7)
+	assert_eq(r.raw_score, 7)
+
+
+func test_medium_mode_uses_sixty_seconds_and_rounded_one_point_five_x_total() -> void:
+	var r = Run.new(1, Run.Mode.MEDIUM)
+	assert_eq(r.build_seconds(), 60)
+	r.on_clear(1)
+	assert_eq(r.run_score, 2, "1 x 1.5 rounds half up to 2")
+	r.on_clear(1)
+	assert_eq(r.raw_score, 2)
+	assert_eq(r.run_score, 3, "the multiplier applies to the accumulated run total")
+
+
+func test_hard_mode_uses_thirty_seconds_and_two_x_score() -> void:
+	var r = Run.new(1, Run.Mode.HARD)
+	assert_eq(r.build_seconds(), 30)
+	r.on_clear(7)
+	assert_eq(r.run_score, 14)
+	assert_eq(r.raw_score, 7)
+
+
+func test_medium_multiplier_applies_when_a_run_ends() -> void:
+	var r = Run.new(1, Run.Mode.MEDIUM)
+	r.on_clear(3)
+	r.on_fail(1)
+	assert_eq(r.raw_score, 4)
+	assert_eq(r.run_score, 6)
+	assert_eq(r.high_score, 6)
+	assert_true(r.over)
+
+
+func test_medium_fail_revive_clear_fail_restart_preserves_score_invariants() -> void:
+	var r = Run.new(1, Run.Mode.MEDIUM)
+	r.on_fail(1)
+	assert_eq(r.raw_score, 1)
+	assert_eq(r.run_score, 2, "the initial odd raw total rounds half up")
+	assert_eq(typeof(r.raw_score), TYPE_INT)
+	assert_eq(typeof(r.run_score), TYPE_INT)
+
+	r.revive()
+	assert_false(r.over)
+	assert_eq(r.raw_score, 1, "revive does not re-bank the failed board")
+	assert_eq(r.run_score, 2, "revive preserves the displayed total")
+	r.on_clear(1)
+	assert_eq(r.raw_score, 1, "clear does not re-bank the revived board")
+	assert_eq(r.run_score, 2)
+	r.on_fail(0)
+	assert_true(r.over)
+	assert_eq(r.raw_score, 1, "a later zero-score failure does not duplicate the old score")
+	assert_eq(r.run_score, 2)
+	assert_eq(r.high_score, 2)
+
+	r.restart()
+	assert_eq(r.raw_score, 0)
+	assert_eq(r.run_score, 0)
+	assert_eq(typeof(r.raw_score), TYPE_INT)
+	assert_eq(typeof(r.run_score), TYPE_INT)
+	assert_eq(r.build_seconds(), 60, "restart retains the selected Medium mode")
+	assert_eq(r.high_score, 2, "restart keeps the high score")
