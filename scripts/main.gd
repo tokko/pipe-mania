@@ -23,6 +23,12 @@ const VIEW := Vector2i(720, 1280)
 const MIN_CELL := 44
 const HUD_TOP := 160
 
+enum AdFlow {
+	NONE,
+	INTERSTITIAL,
+	REWARDED,
+}
+
 var _gs: GameState
 var _bv: BoardView
 var _hud: HUD
@@ -37,7 +43,11 @@ var _ui_flow_active := false  # true once the splash/menu screen flow is running
 var _polish_active := false
 var _ambience_time := 0.0
 var _screen: ScreenController  # the screen-flow FSM (non-test branch only)
-var _games_played := 0  # gates the between-runs interstitial (skip the first game of a session)
+var _completed_runs := 0
+var _last_interstitial_completion := 0
+var _last_completed_run: Run
+var _ad_flow: int = AdFlow.NONE
+var _pending_mode: int = Run.Mode.EASY
 
 
 func _ready() -> void:
@@ -56,7 +66,8 @@ func _boot() -> void:
 	_ui_flow_active = true
 	_polish_active = true
 	Services.ad.reward_earned.connect(_on_reward_earned)
-	Services.iap.purchase_succeeded.connect(_on_purchase_succeeded)
+	Services.ad.reward_failed.connect(_on_reward_failed)
+	Services.ad.interstitial_finished.connect(_on_interstitial_finished)
 	_screen = ScreenController.new()
 	_screen.setup(self)
 	add_child(_screen)
@@ -70,8 +81,8 @@ func _notification(what: int) -> void:
 		get_tree().quit()
 
 
-func _start_game() -> void:
-	_run = Run.new(randi())
+func _start_game(mode: int = Run.Mode.EASY) -> void:
+	_run = Run.new(randi(), mode)
 	_run.high_score = SaveStore.load_high()
 	_mount_first_board()
 
@@ -104,10 +115,10 @@ func _mount_board(gs) -> void:
 	_hud.bind(_bv)
 	_hud.go_pressed.connect(_start_flow)
 	_hud.menu_pressed.connect(_on_menu)
-	var c = Difficulty.config(_run.board_index)  # _mount_board is only ever called after _run is set
-	_build_remaining = float(c.build_seconds)
+	var build_seconds := _run.build_seconds()
+	_build_remaining = float(build_seconds)
 	_clock_started = false  # don't tick until the player places their first pipe
-	_hud.set_countdown(c.build_seconds)
+	_hud.set_countdown(build_seconds)
 	_hud.set_scores(_run.run_score, _run.high_score)
 	if OS.get_environment("PIPE_TEST") == "":
 		Audio.set_music(Audio.MusicTrack.BUILD)
@@ -189,7 +200,12 @@ func _on_outcome(outcome: int, score: int) -> void:
 		_run.on_clear(score)
 		_advance_board()  # instant advance for now; a clear-celebration beat is E6 juice
 	else:
+		if _run.over:
+			return
 		_run.on_fail(score)
+		if _last_completed_run != _run:
+			_completed_runs += 1
+			_last_completed_run = _run
 		Audio.set_music(Audio.MusicTrack.NONE)
 		SaveStore.save_high(_run.high_score)
 		_hud.set_outcome(_run_end_text())
@@ -210,17 +226,31 @@ func _restart() -> void:
 
 # --- screen-flow lifecycle (called by ScreenController on the non-test branch) ---
 
-func start_game() -> void:
-	_maybe_show_interstitial()  # between-runs ad seam (suppressed when ads removed / first game)
-	_start_game()
-
-
-# Interstitial between runs: shown on the 2nd+ game of a session, suppressed once ads are removed.
-# Stub today (records the call); a real adapter shows the actual ad here.
-func _maybe_show_interstitial() -> void:
-	if _games_played > 0 and not Settings.ads_removed:
+func start_game(mode: int = Run.Mode.EASY) -> void:
+	if _ad_flow != AdFlow.NONE:
+		return
+	if _interstitial_is_due():
+		_ad_flow = AdFlow.INTERSTITIAL
+		_pending_mode = mode
+		_last_interstitial_completion = _completed_runs
 		Services.ad.show_interstitial()
-	_games_played += 1
+		return
+	_start_game(mode)
+	if _screen != null:
+		_screen.complete_new_game()
+
+
+func _interstitial_is_due() -> bool:
+	return _completed_runs >= _last_interstitial_completion + 2
+
+
+func _on_interstitial_finished() -> void:
+	if _ad_flow != AdFlow.INTERSTITIAL:
+		return
+	_ad_flow = AdFlow.NONE
+	_start_game(_pending_mode)
+	if _screen != null:
+		_screen.complete_new_game()
 
 
 # Tear the active game down to nothing (returning to the menu): stop the animator, free the board
@@ -241,11 +271,10 @@ func teardown_game() -> void:
 
 
 func request_revive() -> void:
+	if _ad_flow != AdFlow.NONE or _run == null or not _run.over:
+		return
+	_ad_flow = AdFlow.REWARDED
 	_on_revive()
-
-
-func purchase_remove_ads() -> void:
-	_on_remove_ads()
 
 
 func _on_menu() -> void:  # in-run Menu button -> abandon the run, back to the start menu
@@ -263,25 +292,31 @@ func _on_revive() -> void:
 	Services.ad.show_rewarded("revive")
 
 
-func _on_remove_ads() -> void:
-	Services.iap.purchase_remove_ads()
-
-
 func _on_leaderboard() -> void:
 	Services.leaderboard.submit_score(_run.run_score if _run != null else 0)
 
 
 # Rewarded ad completed -> grant the continue: resume the current board, keep the banked run score.
 func _on_reward_earned(kind) -> void:
-	if kind == "revive" and _run != null and _run.over:
-		_run.revive()
-		_mount_board(_run.revive_board())
+	if kind != "revive" or _ad_flow != AdFlow.REWARDED:
+		return
+	_ad_flow = AdFlow.NONE
+	if _run == null or not _run.over:
+		if _screen != null:
+			_screen.complete_revive(false)
+		return
+	_run.revive()
+	if _screen != null:
+		_screen.complete_revive(true)
+	_mount_board(_run.revive_board())
 
 
-# Purchase acknowledged -> persist + apply (Settings mirrors SaveStore; future ad-show sites check it).
-func _on_purchase_succeeded(product) -> void:
-	if product == "remove_ads":
-		Settings.set_ads_removed(true)
+func _on_reward_failed(kind) -> void:
+	if kind != "revive" or _ad_flow != AdFlow.REWARDED:
+		return
+	_ad_flow = AdFlow.NONE
+	if _screen != null:
+		_screen.complete_revive(false)
 
 
 func _outcome_text(outcome: int, score: int) -> String:
@@ -579,8 +614,6 @@ func _run_scripted() -> void:
 	# --- E7b: monetization/leaderboard UI hooks -> Services stubs (inert) ---
 	_on_revive()
 	print("HOOK_REVIVE=", Services.ad.last_call)
-	_on_remove_ads()
-	print("HOOK_REMOVEADS=", Services.iap.last_call)
 	_run = Run.new(1)
 	_run.on_clear(9)  # run_score = 9
 	_on_leaderboard()
@@ -588,6 +621,10 @@ func _run_scripted() -> void:
 
 	# --- E8: screen flow — the ScreenController drives SPLASH -> MENU -> GAME -> RUNOVER, and the
 	# RUNOVER transition is reached via the REAL run-end handler (_on_outcome), not a direct _goto. ---
+	_completed_runs = 0
+	_last_interstitial_completion = 0
+	_last_completed_run = null
+	_ad_flow = AdFlow.NONE
 	_ui_flow_active = true
 	_screen = ScreenController.new()
 	_screen.setup(self)
@@ -596,10 +633,58 @@ func _run_scripted() -> void:
 	print("SCREEN_SPLASH=", _screen.screen_label())  # expect SPLASH
 	_screen._on_splash_dismissed()
 	print("SCREEN_AFTER_SPLASH=", _screen.screen_label())  # expect MENU
-	_screen._on_menu_play()
-	print("SCREEN_AFTER_PLAY=", _screen.screen_label())  # expect GAME (board mounted, no overlay)
+	SaveStore.save_high(0)
+	SaveStore.clear_leaderboard()
+	var run_before_selection := _run
+	_screen._screen_view.emit_signal("play_pressed")  # mounted MenuView -> selector
+	var selector_shown := _screen.screen_label() == "DIFFICULTY" and _run == run_before_selection
+	print("SCREEN_AFTER_PLAY=", _screen.screen_label(),
+		" RUN_UNCHANGED=", _run == run_before_selection)  # expect DIFFICULTY + true
+	assert(selector_shown, "PIPE_TEST missing selector marker: SCREEN_AFTER_PLAY")
+	_screen._screen_view.emit_signal("difficulty_selected", Run.Mode.MEDIUM)  # mounted DifficultyView
+	var medium_timer := "<missing>" if _hud == null else _hud.countdown_text()
+	var medium_started := _screen.screen_label() == "GAME" \
+		and _run != run_before_selection and _run.mode == Run.Mode.MEDIUM \
+		and medium_timer == "Flow in 60s"
+	print("MEDIUM_STARTED=", medium_started, " TIMER=", medium_timer)  # expect true + Flow in 60s
+	assert(medium_started, "PIPE_TEST missing selector marker: MEDIUM_STARTED")
+	# Medium's real run-end path must carry one integer total through every displayed/persisted sink.
+	_on_outcome(GameState.Outcome.CLEARED, 2)  # aggregate raw total 2 -> displayed Medium total 3
+	var medium_total := _run.run_score
+	var medium_hud := _hud.score_text()
+	print("MEDIUM_HUD_TOTAL=", medium_hud, " INTEGER_TOTAL=", medium_total)
+	assert(medium_total == 3 and medium_hud == "Score: 3  Best: 0",
+		"PIPE_TEST Medium total did not reach the HUD as an integer")
+	_on_outcome(GameState.Outcome.LEAK, 0)
+	var medium_runover_total := _screen._pending_score
+	print("MEDIUM_RUNOVER_TOTAL=", medium_runover_total, " SCREEN=", _screen.screen_label())
+	assert(_screen.screen_label() == "RUNOVER" and medium_runover_total == medium_total,
+		"PIPE_TEST Medium total did not reach run-over")
+	var medium_saved_high := SaveStore.load_high()
+	print("MEDIUM_SAVED_HIGH=", medium_saved_high)
+	assert(medium_saved_high == medium_total, "PIPE_TEST Medium total did not persist as high score")
+	_screen._on_initials_submitted("MED")
+	var medium_leaderboard := SaveStore.load_leaderboard()
+	var medium_leaderboard_total := -1
+	if not medium_leaderboard.is_empty():
+		var medium_entry: Dictionary = medium_leaderboard[0]
+		medium_leaderboard_total = int(medium_entry.get("score", -1))
+	print("MEDIUM_LEADERBOARD_TOTAL=", medium_leaderboard_total)
+	assert(medium_leaderboard_total == medium_total,
+		"PIPE_TEST Medium total did not reach leaderboard")
 	_on_outcome(GameState.Outcome.LEAK, 0)  # a real run-end must raise the run-over screen
 	print("SCREEN_AFTER_LEAK=", _screen.screen_label())  # expect RUNOVER
+	_screen._overlay.emit_signal("new_game_pressed")  # mounted RunoverView -> selector
+	var selector_after_runover := _screen.screen_label() == "DIFFICULTY"
+	print("SCREEN_AFTER_NEW_GAME=", _screen.screen_label())  # expect DIFFICULTY
+	assert(selector_after_runover, "PIPE_TEST missing selector marker: SCREEN_AFTER_NEW_GAME")
+	_screen._screen_view.emit_signal("difficulty_selected", Run.Mode.HARD)  # mounted DifficultyView
+	var hard_timer := "<missing>" if _hud == null else _hud.countdown_text()
+	var hard_started := _screen.screen_label() == "GAME" and _run.mode == Run.Mode.HARD \
+		and hard_timer == "Flow in 30s"
+	print("HARD_STARTED=", hard_started,
+		" TIMER=", hard_timer)  # expect true + Flow in 30s
+	assert(hard_started, "PIPE_TEST missing selector marker: HARD_STARTED")
 	# Leaderboard submission follows the mounted run-over controller handoff, then restores state.
 	SaveStore.clear_leaderboard()
 	var leaderboard_run := Run.new(47)
@@ -607,9 +692,12 @@ func _run_scripted() -> void:
 	_screen.show_runover(leaderboard_run, 3)
 	_screen._on_initials_submitted("AAA")
 	var saved_entries := SaveStore.load_leaderboard()
-	var saved_entry: Dictionary = saved_entries[0]
-	assert(saved_entry["name"] == "AAA")
-	assert(int(saved_entry["score"]) == 12)
+	var saved_entry: Dictionary = {}
+	if not saved_entries.is_empty():
+		saved_entry = saved_entries[0]
+	assert(not saved_entries.is_empty(), "PIPE_TEST leaderboard submission produced no entry")
+	assert(str(saved_entry.get("name", "")) == "AAA")
+	assert(int(saved_entry.get("score", -1)) == 12)
 	var saved_date := str(saved_entry.get("date", ""))
 	var date_pattern := RegEx.new()
 	date_pattern.compile("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
@@ -638,24 +726,20 @@ func _run_scripted() -> void:
 	_run = Run.new(3)
 	_run.on_clear(7)  # run_score = 7
 	_run.on_fail(0)    # over
+	_ad_flow = AdFlow.REWARDED
 	_on_reward_earned("revive")
 	print("REVIVE_OVER=", _run.over, " REVIVE_RUN_SCORE=", _run.run_score)  # expect false 7
 	# interstitial seam: shown on a replay when ads are NOT removed, suppressed when they are
-	Settings.ads_removed = false
-	_games_played = 1  # force "not the first game of the session"
+	_completed_runs = 2
+	_last_interstitial_completion = 0
 	Services.ad.last_call = ""
-	_maybe_show_interstitial()
+	start_game()
 	print("INTERSTITIAL_SHOWN=", Services.ad.last_call)  # expect interstitial
-	Settings.ads_removed = true
+	_on_interstitial_finished()
+	_completed_runs = 4
 	Services.ad.last_call = ""
-	_maybe_show_interstitial()
-	print("INTERSTITIAL_SUPPRESSED=", Services.ad.last_call == "")  # expect true (control)
-	# remove-ads purchase persists + mirrors into Settings
-	Settings.ads_removed = false
-	_on_purchase_succeeded("remove_ads")
-	print("ADS_REMOVED_RUNTIME=", Settings.ads_removed, " PERSISTED=", SaveStore.load_ads_removed())  # true true
-	Settings.ads_removed = false
-	SaveStore.save_ads_removed(false)  # restore default for clean reruns
+	start_game()
+	print("INTERSTITIAL_SHOWN_AGAIN=", Services.ad.last_call)  # expect interstitial
 
 
 # Helpers for the S3.2 scripted flow checks.

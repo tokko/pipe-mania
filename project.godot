@@ -12,14 +12,14 @@ config_version=5
 
 config/name="Aqueduct"
 config/description="Placeholder name; rename before store submit. Real-time pipe-routing puzzle."
-config/quit_on_go_back=false
 run/main_scene="res://scenes/main.tscn"
+config/quit_on_go_back=false
 config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
 
 [autoload]
 
-Config="*res://scripts/config.gd"
+GameConfig="*res://scripts/config.gd"
 Settings="*res://scripts/settings.gd"
 Audio="*res://scripts/audio_cues.gd"
 Services="*res://scripts/services.gd"
@@ -35,6 +35,10 @@ window/size/viewport_height=1280
 window/stretch/mode="canvas_items"
 window/stretch/aspect="keep_width"
 window/handheld/orientation=1
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/admob/plugin.cfg")
 
 [rendering]
 

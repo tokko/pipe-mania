@@ -174,27 +174,7 @@ func test_mixed_legacy_leaderboard_loads_valid_sorted_top_ten_entries() -> void:
 	assert_eq(scores, [120, 110, 100, 90, 80, 70, 60, 50, 40, 30], "valid scores load highest to lowest")
 
 
-# --- ads_removed / audio_enabled flags ---
-
-func test_ads_removed_default_false() -> void:
-	_clear()
-	assert_false(SaveStore.load_ads_removed(), "no save -> ads not removed")
-
-
-func test_ads_removed_roundtrip() -> void:
-	_clear()
-	SaveStore.save_ads_removed(true)
-	assert_true(SaveStore.load_ads_removed(), "ads_removed survives a reload")
-
-
-func test_ads_removed_does_not_clobber_high() -> void:  # control (read-modify-write)
-	_clear()
-	SaveStore.save_high(33)
-	SaveStore.save_ads_removed(true)
-	assert_eq(SaveStore.load_high(), 33, "saving ads_removed must not wipe the high score")
-	assert_true(SaveStore.load_ads_removed())
-
-
+# --- audio_enabled flag ---
 func test_audio_enabled_default_true() -> void:
 	_clear()
 	assert_true(SaveStore.load_audio_enabled(), "no save -> audio enabled by default")

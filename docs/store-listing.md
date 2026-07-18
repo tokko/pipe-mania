@@ -17,11 +17,16 @@
 - **Content rating:** TODO (IARC questionnaire — expected Everyone)
 - **Screenshots:** TODO (phone portrait: build phase w/ route readout; flow w/ scored-route highlight; bomb proximity)
 - **Feature graphic / icon:** TODO (authored art)
-- **Privacy policy URL:** TODO (required once ads/analytics SDKs are live — see E7b stubbed services)
-- **Monetization:** F2P hybrid (rewarded video / remove-ads IAP / cosmetics) — stubbed this build (E7b), live wiring needs accounts.
+- **Privacy policy URL:** TODO (required for release)
+- **Monetization:** Rewarded revive plus between-run interstitials. Production IDs remain account-gated.
+  Billing, Remove Ads, and cosmetics are deferred and not offered.
 
-## Build (once `tools/android-preflight.ps1` is GREEN)
-1. Install Godot 4.6.2 Android export templates; set editor Android SDK + Java SDK paths; generate a debug keystore.
-2. `tools/android-preflight.ps1`  → expect `PREFLIGHT: GREEN`.
-3. `godot --headless --export-debug Android build/aqueduct.apk`
-4. Smoke: install on an AVD, play a fixed-seed board to a clear (design's on-device smoke test).
+## Build and test
+
+1. `& '.\tools\android-preflight.ps1' -Target Test`
+2. `& '.\tools\export-ads-build.ps1' -Target Test`
+3. Install `C:\Temp\aqueduct-test.apk` on a physical device.
+4. Run a labelled Test Ad smoke: verify rewarded revive grants a continue, and dismissing a between-run
+   interstitial resumes the run.
+
+Production export remains blocked until the account-gated IDs, privacy URLs, and release signing inputs are supplied.

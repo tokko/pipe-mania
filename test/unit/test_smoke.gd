@@ -3,7 +3,7 @@ extends "res://addons/gut/test.gd"
 
 
 func test_config_singleton_exposes_game_name() -> void:
-	assert_ne(Config.GAME_NAME, "", "Config.GAME_NAME must be set")
+	assert_ne(GameConfig.GAME_NAME, "", "GameConfig.GAME_NAME must be set")
 
 
 func test_arithmetic_sanity() -> void:

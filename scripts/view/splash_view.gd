@@ -22,7 +22,7 @@ func _ready() -> void:
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	vb.add_child(icon)
-	vb.add_child(UiStyle.title(Config.GAME_NAME.to_upper()))
+	vb.add_child(UiStyle.title(GameConfig.GAME_NAME.to_upper()))
 	get_tree().create_timer(1.5).timeout.connect(_advance)
 
 

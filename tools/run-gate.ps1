@@ -45,12 +45,17 @@ try {
   $env:APPDATA = $appData
   $env:LOCALAPPDATA = $localAppData
 
+  $logDir = Join-Path $proj ".tmp\godot-logging"
+  New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+  $importLog = Join-Path $proj ".tmp\godot-logging\import.log"
+  $gutLog = Join-Path $proj ".tmp\godot-logging\gut.log"
+
   # First run on a fresh checkout: import so GUT class_names register.
   if (-not (Test-Path (Join-Path $proj ".godot"))) {
-    & $godot --path $proj --headless --import | Out-Null
+    & $godot --log-file $importLog --path $proj --headless --import | Out-Null
   }
 
-  & $godot --path $proj --headless -s res://addons/gut/gut_cmdln.gd '-gdir=res://test' -ginclude_subdirs -gexit
+  & $godot --log-file $gutLog --path $proj --headless -s res://addons/gut/gut_cmdln.gd -gdir=res://test -ginclude_subdirs -gexit
   exit $LASTEXITCODE
 } finally {
   if ($hadAppData) { $env:APPDATA = $oldAppData } else { Remove-Item Env:APPDATA -ErrorAction SilentlyContinue }

@@ -3,7 +3,18 @@ extends "res://addons/gut/test.gd"
 ## per-board score, ends on a verify-fail; restart keeps the high score.
 
 const Run = preload("res://scripts/model/run.gd")
+const Board = preload("res://scripts/model/board.gd")
 const GameState = preload("res://scripts/model/game_state.gd")
+const PT = preload("res://scripts/model/pipe_types.gd")
+
+
+func _count_blocked(board: Board) -> int:
+	var count := 0
+	for y in board.height:
+		for x in board.width:
+			if board.cell_at(x, y) == PT.Cell.BLOCKED:
+				count += 1
+	return count
 
 
 func test_three_board_run_sums_score() -> void:  # acceptance: run-score = Σ board scores
@@ -69,6 +80,21 @@ func test_next_board_escalates_grid_with_index() -> void:
 	assert_true(late.board.height > early.board.height, "grid height escalates by index 9")
 
 
+func test_next_board_blocked_count_is_seed_deterministic_and_varies() -> void:
+	var counts := {}
+	for seed in range(1, 33):
+		var first_run = Run.new(seed)
+		var second_run = Run.new(seed)
+		var first_board: Board = first_run.next_board().board
+		var second_board: Board = second_run.next_board().board
+		var count := _count_blocked(first_board)
+		assert_eq(count, _count_blocked(second_board), "seed %d is deterministic" % seed)
+		assert_gte(count, 4, "seed %d has at least 4 blocked cells" % seed)
+		assert_lte(count, 10, "seed %d has at most 10 blocked cells" % seed)
+		counts[count] = true
+	assert_gte(counts.size(), 2, "blocked counts vary across run seeds")
+
+
 func test_revive_clears_over_on_failed_run() -> void:  # acceptance: revive resumes a dead run
 	var r = Run.new(1)
 	r.on_clear(6)
@@ -124,3 +150,69 @@ func test_restart_resets_revived() -> void:
 	r.revive()
 	r.restart()
 	assert_false(r.revived, "restart re-arms the one-time revive")
+
+
+func test_easy_mode_uses_ninety_seconds_and_one_x_score() -> void:
+	var r = Run.new(1, Run.Mode.EASY)
+	assert_eq(r.build_seconds(), 90)
+	r.on_clear(7)
+	assert_eq(r.run_score, 7)
+	assert_eq(r.raw_score, 7)
+
+
+func test_medium_mode_uses_sixty_seconds_and_rounded_one_point_five_x_total() -> void:
+	var r = Run.new(1, Run.Mode.MEDIUM)
+	assert_eq(r.build_seconds(), 60)
+	r.on_clear(1)
+	assert_eq(r.run_score, 2, "1 x 1.5 rounds half up to 2")
+	r.on_clear(1)
+	assert_eq(r.raw_score, 2)
+	assert_eq(r.run_score, 3, "the multiplier applies to the accumulated run total")
+
+
+func test_hard_mode_uses_thirty_seconds_and_two_x_score() -> void:
+	var r = Run.new(1, Run.Mode.HARD)
+	assert_eq(r.build_seconds(), 30)
+	r.on_clear(7)
+	assert_eq(r.run_score, 14)
+	assert_eq(r.raw_score, 7)
+
+
+func test_medium_multiplier_applies_when_a_run_ends() -> void:
+	var r = Run.new(1, Run.Mode.MEDIUM)
+	r.on_clear(3)
+	r.on_fail(1)
+	assert_eq(r.raw_score, 4)
+	assert_eq(r.run_score, 6)
+	assert_eq(r.high_score, 6)
+	assert_true(r.over)
+
+
+func test_medium_fail_revive_clear_fail_restart_preserves_score_invariants() -> void:
+	var r = Run.new(1, Run.Mode.MEDIUM)
+	r.on_fail(1)
+	assert_eq(r.raw_score, 1)
+	assert_eq(r.run_score, 2, "the initial odd raw total rounds half up")
+	assert_eq(typeof(r.raw_score), TYPE_INT)
+	assert_eq(typeof(r.run_score), TYPE_INT)
+
+	r.revive()
+	assert_false(r.over)
+	assert_eq(r.raw_score, 1, "revive does not re-bank the failed board")
+	assert_eq(r.run_score, 2, "revive preserves the displayed total")
+	r.on_clear(1)
+	assert_eq(r.raw_score, 1, "clear does not re-bank the revived board")
+	assert_eq(r.run_score, 2)
+	r.on_fail(0)
+	assert_true(r.over)
+	assert_eq(r.raw_score, 1, "a later zero-score failure does not duplicate the old score")
+	assert_eq(r.run_score, 2)
+	assert_eq(r.high_score, 2)
+
+	r.restart()
+	assert_eq(r.raw_score, 0)
+	assert_eq(r.run_score, 0)
+	assert_eq(typeof(r.raw_score), TYPE_INT)
+	assert_eq(typeof(r.run_score), TYPE_INT)
+	assert_eq(r.build_seconds(), 60, "restart retains the selected Medium mode")
+	assert_eq(r.high_score, 2, "restart keeps the high score")
