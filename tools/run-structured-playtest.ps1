@@ -59,7 +59,7 @@ function Test-ScenarioEnvelope($Scenario) {
         -not (Test-IsInteger $Scenario.tick_hz) -or -not (Test-IsInteger $Scenario.max_ticks)) {
         return 'scenario envelope values must be integers'
     }
-    if ([int64]$Scenario.schema_version -ne 1) { return 'scenario envelope value out of range' }
+    if ($Scenario.schema_version -ne 1) { return 'scenario envelope value out of range' }
     if ($Scenario.seed -lt 0 -or $Scenario.seed -gt 2147483647 -or $Scenario.tick_hz -ne 60 -or
         $Scenario.max_ticks -lt 1 -or $Scenario.max_ticks -gt 3600) {
         return 'scenario envelope value out of range'

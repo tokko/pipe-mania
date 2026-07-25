@@ -118,6 +118,18 @@ Describe 'structured playtest runner (parked: headless UI criteria require visib
         ($raw.Trim() | ConvertFrom-Json).errors[0].code | Should Be 'INVALID_ENVELOPE'
     }
 
+    It 'rejects an oversized integral schema version with canonical INVALID_ENVELOPE output' {
+        $oversizedPath = Join-Path $TestDrive 'oversized-schema-version.json'
+        $json = Get-Content -LiteralPath $script:placement -Raw
+        $json = $json -replace '"schema_version"\s*:\s*1', '"schema_version": 100000000000000000000'
+        Set-Content -LiteralPath $oversizedPath -Value $json -Encoding UTF8
+
+        $raw = @(& $script:runner -ScenarioPath $oversizedPath 2>&1 | Out-String)
+
+        $LASTEXITCODE | Should Be 2
+        ($raw.Trim() | ConvertFrom-Json).errors[0].code | Should Be 'INVALID_ENVELOPE'
+    }
+
     It 'removes the isolated profile after spawned processes are stopped' {
         $fakeGodot = Join-Path $TestDrive 'fake-godot.exe'
         Add-Type -TypeDefinition 'using System.Threading; public static class FakeGodot { public static void Main(string[] args) { Thread.Sleep(5000); } }' -OutputAssembly $fakeGodot -OutputType ConsoleApplication
@@ -141,7 +153,6 @@ Describe 'structured playtest runner (parked: headless UI criteria require visib
         $scenarioB = Join-Path $scenarioDirectoryB 'shared.json'
         $first = Get-Content -LiteralPath $script:placement -Raw | ConvertFrom-Json
         $second = Get-Content -LiteralPath $script:placement -Raw | ConvertFrom-Json
-        $second.seed = 8
         $first | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $scenarioA -Encoding UTF8
         $second | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $scenarioB -Encoding UTF8
         $fakeGodot = Join-Path $TestDrive 'fake-godot.exe'
