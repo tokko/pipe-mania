@@ -71,6 +71,7 @@ $oldLocalAppData = $env:LOCALAPPDATA
 $process = $null
 $rawText = $null
 $processExit = 3
+$importTimedOut = $false
 
 try {
     New-Item -ItemType Directory -Path $appData, $localAppData -Force | Out-Null
@@ -91,14 +92,15 @@ try {
     $importProcess.StandardError.ReadToEndAsync() | Out-Null
     if (-not $importProcess.WaitForExit($TimeoutMs)) {
         & taskkill.exe /PID $importProcess.Id /T /F 2>$null | Out-Null
-        $importProcess.WaitForExit(3000)
+        [void]$importProcess.WaitForExit(3000)
         $importProcess.Dispose()
         $trace = New-Trace 3 'engine_error' 'ENGINE_FAILED' 'Godot resource import timed out' $scenarioId $seed
         $rawText = $trace | ConvertTo-Json -Compress -Depth 10
         $processExit = 3
-        throw 'structured-playtest import timed out'
+        $importTimedOut = $true
     }
     $importProcess.Dispose()
+    if (-not $importTimedOut) {
     $psi = [Diagnostics.ProcessStartInfo]::new()
     $psi.FileName = (Resolve-Path -LiteralPath $GodotPath).Path
     $psi.Arguments = '--headless --path ' + (Quote-Arg $ProjectRoot) + ' -s res://scripts/structured_playtest_runner.gd --scenario ' + (Quote-Arg $scenarioPath)
@@ -130,6 +132,7 @@ try {
             $rawText = $trace | ConvertTo-Json -Compress -Depth 10
             $processExit = 3
         }
+    }
     }
 } finally {
     if ($process) { $process.Dispose() }

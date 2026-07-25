@@ -69,6 +69,25 @@ Describe 'structured playtest runner' {
         $trace.final_state.available | Should Be $false
         $trace.exit | Should Be 'engine_error'
     }
+
+    It 'serializes a canonical failure trace when resource import times out' {
+        $fakeGodot = Join-Path $TestDrive 'fake-godot.exe'
+        Add-Type -TypeDefinition 'using System.Threading; public static class FakeGodot { public static void Main(string[] args) { Thread.Sleep(5000); } }' -OutputAssembly $fakeGodot -OutputType ConsoleApplication
+        $outputDirectory = Join-Path $TestDrive 'traces'
+        $raw = @(& $script:runner -ScenarioPath $script:placement -GodotPath $fakeGodot -TimeoutMs 20 -OutputDirectory $outputDirectory 2>&1 | Out-String)
+
+        $LASTEXITCODE | Should Be 3
+        $trace = $raw.Trim() | ConvertFrom-Json
+        $trace.schema_version | Should Be 1
+        $trace.scenario_id | Should Be 'mechanic-placement'
+        $trace.exit | Should Be 'engine_error'
+        $trace.errors[0].code | Should Be 'ENGINE_FAILED'
+        $trace.errors[0].message | Should Be 'Godot resource import timed out'
+        (Test-Path (Join-Path $outputDirectory 'mechanic-placement.raw.json')) | Should Be $true
+        (Test-Path (Join-Path $outputDirectory 'mechanic-placement.projection.json')) | Should Be $true
+        (Test-Path (Join-Path $outputDirectory 'mechanic-placement.raw.sha256')) | Should Be $true
+        (Test-Path (Join-Path $outputDirectory 'mechanic-placement.projection.sha256')) | Should Be $true
+    }
 }
 
 $global:LASTEXITCODE = 0
