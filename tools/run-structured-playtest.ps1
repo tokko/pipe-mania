@@ -3,7 +3,7 @@
     [ValidateSet('raw', 'projection')] [string]$TraceMode = 'raw',
     [string]$GodotPath,
     [string]$ProjectRoot,
-    [int]$TimeoutMs = 30000,
+    [ValidateRange(1, [int]::MaxValue)] [int]$TimeoutMs = 30000,
     [string]$OutputDirectory
 )
 
@@ -27,6 +27,79 @@ function New-Trace([int]$ExitCode, [string]$ExitName, [string]$Code, [string]$Me
     }
 }
 
+function Test-ExactKeys($Object, [string[]]$Expected) {
+    if ($null -eq $Object) { return $false }
+    $actual = @($Object.PSObject.Properties.Name | Sort-Object)
+    $expected = @($Expected | Sort-Object)
+    return $actual.Count -eq $expected.Count -and (($actual -join "`n") -eq ($expected -join "`n"))
+}
+
+function Test-IsInteger($Value) {
+    if ($null -eq $Value) { return $false }
+    if ($Value -is [byte] -or $Value -is [sbyte] -or $Value -is [int16] -or $Value -is [uint16] -or
+        $Value -is [int32] -or $Value -is [uint32] -or $Value -is [int64] -or $Value -is [uint64]) {
+        return $true
+    }
+    if ($Value -is [decimal]) { return $Value -eq [math]::Floor([double]$Value) }
+    if ($Value -is [single] -or $Value -is [double]) {
+        $number = [double]$Value
+        return -not [double]::IsNaN($number) -and -not [double]::IsInfinity($number) -and $number -eq [math]::Floor($number)
+    }
+    return $false
+}
+
+function Test-ScenarioEnvelope($Scenario) {
+    $envelopeKeys = @('schema_version', 'scenario_id', 'seed', 'tick_hz', 'max_ticks', 'steps')
+    $stepKeys = @('tick', 'action', 'args')
+    if (-not (Test-ExactKeys $Scenario $envelopeKeys)) { return 'scenario envelope keys are not exact' }
+    if ($Scenario.scenario_id -isnot [string] -or $Scenario.scenario_id.Length -lt 1 -or $Scenario.scenario_id.Length -gt 128) {
+        return 'scenario_id must be a UTF-8 string of 1..128 characters'
+    }
+    if (-not (Test-IsInteger $Scenario.schema_version) -or -not (Test-IsInteger $Scenario.seed) -or
+        -not (Test-IsInteger $Scenario.tick_hz) -or -not (Test-IsInteger $Scenario.max_ticks)) {
+        return 'scenario envelope values must be integers'
+    }
+    if ([int64]$Scenario.schema_version -ne 1) { return 'scenario envelope value out of range' }
+    if ($Scenario.seed -lt 0 -or $Scenario.seed -gt 2147483647 -or $Scenario.tick_hz -ne 60 -or
+        $Scenario.max_ticks -lt 1 -or $Scenario.max_ticks -gt 3600) {
+        return 'scenario envelope value out of range'
+    }
+    if ($Scenario.steps -isnot [array] -or $Scenario.steps.Count -lt 1 -or $Scenario.steps.Count -gt 256) {
+        return 'steps must contain 1..256 entries'
+    }
+    $previous = -1
+    foreach ($step in $Scenario.steps) {
+        if (-not (Test-ExactKeys $step $stepKeys)) { return 'step keys are not exact' }
+        if (-not (Test-IsInteger $step.tick) -or $step.tick -lt 0 -or $step.tick -ge $Scenario.max_ticks -or $step.tick -lt $previous) {
+            return 'step ticks must increase within max_ticks'
+        }
+        if ($step.action -isnot [string]) { return 'step action is not a string' }
+        if ($null -eq $step.args -or $step.args -is [array] -or $step.args -isnot [pscustomobject]) { return 'step args must be an object' }
+        $previous = [int64]$step.tick
+    }
+    return $null
+}
+
+function Test-PathUnderRoot([string]$Path, [string]$Root) {
+    $fullPath = [IO.Path]::GetFullPath($Path).TrimEnd('\')
+    $fullRoot = [IO.Path]::GetFullPath($Root).TrimEnd('\')
+    return $fullPath.Equals($fullRoot, [StringComparison]::OrdinalIgnoreCase) -or
+        $fullPath.StartsWith($fullRoot + '\', [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Stop-SpawnedProcess($Process) {
+    if ($null -eq $Process) { return }
+    try {
+        if (-not $Process.HasExited) {
+            & taskkill.exe /PID $Process.Id /T /F 2>$null | Out-Null
+            [void]$Process.WaitForExit(3000)
+            if (-not $Process.HasExited) { try { $Process.Kill() } catch { } }
+            [void]$Process.WaitForExit(3000)
+        }
+    } catch { }
+    try { $Process.Dispose() } catch { }
+}
+
 if (-not (Test-Path -LiteralPath $ScenarioPath -PathType Leaf)) {
     $trace = New-Trace 2 'scenario_error' 'MISSING_TRACE' 'scenario file was not found'
     $rawText = $trace | ConvertTo-Json -Compress -Depth 10
@@ -42,8 +115,15 @@ try { $scenario = Get-Content -LiteralPath $scenarioPath -Raw | ConvertFrom-Json
     exit 2
 }
 $scenarioId = if ($scenario.scenario_id -is [string] -and $scenario.scenario_id.Length -ge 1 -and $scenario.scenario_id.Length -le 128) { [string]$scenario.scenario_id } else { 'invalid-scenario' }
-$seed = if ($scenario.seed -is [int] -or $scenario.seed -is [long] -or $scenario.seed -is [double]) { [int]$scenario.seed } else { 0 }
-if ($scenarioId -eq 'invalid-scenario' -or $seed -eq 0 -and $scenario.seed -ne 0) { $scenarioId = 'invalid-scenario'; $seed = 0 }
+$seed = 0
+$envelopeError = Test-ScenarioEnvelope $scenario
+if ($null -ne $envelopeError) {
+    $trace = New-Trace 2 'scenario_error' 'INVALID_ENVELOPE' $envelopeError $scenarioId $seed
+    $rawText = $trace | ConvertTo-Json -Compress -Depth 10
+    Write-Output $rawText
+    exit 2
+}
+$seed = [int]$scenario.seed
 
 if (-not $ProjectRoot) { $ProjectRoot = Split-Path -Parent $PSScriptRoot }
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
@@ -68,6 +148,7 @@ $hadAppData = Test-Path Env:APPDATA
 $hadLocalAppData = Test-Path Env:LOCALAPPDATA
 $oldAppData = $env:APPDATA
 $oldLocalAppData = $env:LOCALAPPDATA
+$importProcess = $null
 $process = $null
 $rawText = $null
 $processExit = 3
@@ -93,13 +174,13 @@ try {
     if (-not $importProcess.WaitForExit($TimeoutMs)) {
         & taskkill.exe /PID $importProcess.Id /T /F 2>$null | Out-Null
         [void]$importProcess.WaitForExit(3000)
-        $importProcess.Dispose()
         $trace = New-Trace 3 'engine_error' 'ENGINE_FAILED' 'Godot resource import timed out' $scenarioId $seed
         $rawText = $trace | ConvertTo-Json -Compress -Depth 10
         $processExit = 3
         $importTimedOut = $true
     }
-    $importProcess.Dispose()
+    Stop-SpawnedProcess $importProcess
+    $importProcess = $null
     if (-not $importTimedOut) {
     $psi = [Diagnostics.ProcessStartInfo]::new()
     $psi.FileName = (Resolve-Path -LiteralPath $GodotPath).Path
@@ -118,7 +199,7 @@ try {
         $process.WaitForExit(3000)
         $remaining = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
         if ($remaining) { try { $remaining.Kill() } catch { } }
-        $process.WaitForExit()
+        [void]$process.WaitForExit(3000)
         $trace = New-Trace 4 'timeout' 'WALL_TIMEOUT' ('process exceeded %d ms' -f $TimeoutMs) $scenarioId $seed
         $rawText = $trace | ConvertTo-Json -Compress -Depth 10
         $processExit = 4
@@ -135,9 +216,13 @@ try {
     }
     }
 } finally {
-    if ($process) { $process.Dispose() }
+    Stop-SpawnedProcess $process
+    Stop-SpawnedProcess $importProcess
     if ($hadAppData) { $env:APPDATA = $oldAppData } else { Remove-Item Env:APPDATA -ErrorAction SilentlyContinue }
     if ($hadLocalAppData) { $env:LOCALAPPDATA = $oldLocalAppData } else { Remove-Item Env:LOCALAPPDATA -ErrorAction SilentlyContinue }
+    if ((Test-Path -LiteralPath $profileRoot -PathType Container) -and (Test-PathUnderRoot $profileRoot $ProjectRoot)) {
+        Remove-Item -LiteralPath $profileRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 $traceObject = $null
@@ -150,8 +235,16 @@ try { $traceObject = $rawText | ConvertFrom-Json } catch {
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path $ProjectRoot '.tmp\structured-playtest-traces' }
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $stem = [IO.Path]::GetFileNameWithoutExtension($scenarioPath)
+$hashAlgorithm = [Security.Cryptography.SHA256]::Create()
+try {
+    $hashInput = [Text.UTF8Encoding]::new($false).GetBytes($scenarioPath + "`n" + [IO.File]::ReadAllText($scenarioPath))
+    $scenarioHash = ([BitConverter]::ToString($hashAlgorithm.ComputeHash($hashInput))).Replace('-', '').ToLowerInvariant()
+} finally {
+    $hashAlgorithm.Dispose()
+}
+$artifactStem = $stem + '-' + $scenarioHash.Substring(0, 12)
 $encoding = [Text.UTF8Encoding]::new($false)
-$rawPath = Join-Path $OutputDirectory ($stem + '.raw.json')
+$rawPath = Join-Path $OutputDirectory ($artifactStem + '.raw.json')
 [IO.File]::WriteAllText($rawPath, $rawText, $encoding)
 
 $projection = [ordered]@{
@@ -166,10 +259,10 @@ $projection = [ordered]@{
     errors = @($traceObject.errors)
 }
 $projectionText = $projection | ConvertTo-Json -Compress -Depth 20
-$projectionPath = Join-Path $OutputDirectory ($stem + '.projection.json')
+$projectionPath = Join-Path $OutputDirectory ($artifactStem + '.projection.json')
 [IO.File]::WriteAllText($projectionPath, $projectionText, $encoding)
-(Get-FileHash -LiteralPath $rawPath -Algorithm SHA256).Hash.ToLowerInvariant() | Set-Content -LiteralPath (Join-Path $OutputDirectory ($stem + '.raw.sha256')) -Encoding ascii -NoNewline
-(Get-FileHash -LiteralPath $projectionPath -Algorithm SHA256).Hash.ToLowerInvariant() | Set-Content -LiteralPath (Join-Path $OutputDirectory ($stem + '.projection.sha256')) -Encoding ascii -NoNewline
+(Get-FileHash -LiteralPath $rawPath -Algorithm SHA256).Hash.ToLowerInvariant() | Set-Content -LiteralPath (Join-Path $OutputDirectory ($artifactStem + '.raw.sha256')) -Encoding ascii -NoNewline
+(Get-FileHash -LiteralPath $projectionPath -Algorithm SHA256).Hash.ToLowerInvariant() | Set-Content -LiteralPath (Join-Path $OutputDirectory ($artifactStem + '.projection.sha256')) -Encoding ascii -NoNewline
 
 if ($TraceMode -eq 'projection') { Write-Output $projectionText } else { Write-Output $rawText }
 exit $processExit
