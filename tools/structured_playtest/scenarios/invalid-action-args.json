@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "scenario_id": "invalid-action-args",
+  "seed": 7,
+  "tick_hz": 60,
+  "max_ticks": 120,
+  "steps": [{"tick": 0, "action": "tap_splash", "args": {"unexpected": true}}]
+}
