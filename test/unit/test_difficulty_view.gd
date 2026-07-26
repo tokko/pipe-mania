@@ -29,3 +29,17 @@ func test_all_difficulty_choices_are_labeled_and_emit_their_mode() -> void:
 
 	assert_eq(selected, [Run.Mode.EASY, Run.Mode.MEDIUM, Run.Mode.HARD])
 	view.free()
+
+
+func test_ad_pending_disables_every_difficulty_choice() -> void:
+	var view := DifficultyView.new()
+	add_child(view)
+	await get_tree().process_frame
+
+	assert_true(view.has_method("set_ad_pending"), "selector exposes one shared pending-state seam")
+	if view.has_method("set_ad_pending"):
+		view.call("set_ad_pending", true)
+		assert_true(_button(view, "EasyButton").disabled)
+		assert_true(_button(view, "MediumButton").disabled)
+		assert_true(_button(view, "HardButton").disabled)
+	view.free()

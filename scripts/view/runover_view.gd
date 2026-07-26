@@ -18,6 +18,10 @@ var _qualifies := false
 var _can_revive := false
 var _initials: LineEdit
 var _submit_button: Button
+var _revive_button: Button
+var _new_game_button: Button
+var _menu_button: Button
+var _ad_status: Label
 var _submitted := false
 
 
@@ -54,18 +58,24 @@ func _ready() -> void:
 		_submit_button.pressed.connect(_submit)
 		vb.add_child(_submit_button)
 	if _can_revive:
-		var rv := UiStyle.button("Revive (watch ad)", true)
-		rv.pressed.connect(func() -> void: revive_pressed.emit())
-		vb.add_child(rv)
-	var ng := UiStyle.button("New Game", true)
-	ng.pressed.connect(func() -> void: new_game_pressed.emit())
-	vb.add_child(ng)
+		_revive_button = UiStyle.button("Revive (watch ad)", true)
+		_revive_button.name = "ReviveButton"
+		_revive_button.pressed.connect(func() -> void: revive_pressed.emit())
+		vb.add_child(_revive_button)
+	_ad_status = UiStyle.label("")
+	_ad_status.name = "AdStatus"
+	vb.add_child(_ad_status)
+	_new_game_button = UiStyle.button("New Game", true)
+	_new_game_button.name = "NewGameButton"
+	_new_game_button.pressed.connect(func() -> void: new_game_pressed.emit())
+	vb.add_child(_new_game_button)
 	var lb := UiStyle.button("Leaderboard")
 	lb.pressed.connect(func() -> void: leaderboard_pressed.emit())
 	vb.add_child(lb)
-	var mn := UiStyle.button("Menu")
-	mn.pressed.connect(func() -> void: menu_pressed.emit())
-	vb.add_child(mn)
+	_menu_button = UiStyle.button("Menu")
+	_menu_button.name = "MenuButton"
+	_menu_button.pressed.connect(func() -> void: menu_pressed.emit())
+	vb.add_child(_menu_button)
 
 
 func _on_initials_typed(t: String) -> void:
@@ -85,6 +95,21 @@ func _submit() -> void:
 	_initials.editable = false
 	_submit_button.disabled = true
 	initials_submitted.emit(initials)
+
+
+func set_ad_pending(pending: bool) -> void:
+	if _revive_button != null:
+		_revive_button.disabled = pending
+	if _new_game_button != null:
+		_new_game_button.disabled = pending
+	if _menu_button != null:
+		_menu_button.disabled = pending
+
+
+func show_ad_failure() -> void:
+	set_ad_pending(false)
+	if _ad_status != null:
+		_ad_status.text = "Ad unavailable. Try again."
 
 
 func connect_view(c) -> void:

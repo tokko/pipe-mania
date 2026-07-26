@@ -1,74 +1,66 @@
-# Monetization & Online Services — Setup (account-gated)
+# Ads setup and production go-live
 
-This game ships with a **working monetization UX** (Remove-Ads persists, Revive grants a continue,
-a between-runs interstitial seam) and a **local top-10 leaderboard** — all behind the `Services`
-abstraction. The ad/IAP calls run against **dev stubs** that succeed instantly, so desktop and
-headless development need no accounts.
+The implemented monetization scope is **rewarded revive** plus **between-run interstitials**. Desktop,
+headless, and `PIPE_TEST` use deterministic STUB services. Android Test uses the installed Poing Studios
+AdMob plugin v4.3.1 and Google test ads. Production IDs are blank and remain account-gated; LIVE stays STUB
+until the required IDs are complete and non-demo.
 
-Going **live** (real AdMob ads, real Play Billing purchases) needs your accounts + the v2 Android
-plugins, which can't be set up or tested without your credentials. This doc is the checklist.
+## Human/account steps first
 
-## What's already scaffolded (no action needed)
+Complete these steps in the relevant Google accounts, then provide Codex only the resulting IDs and URLs.
+Do not share credentials, keystore passwords, payment data, or service-account keys.
 
-- **Runtime dispatch** — `scripts/services.gd` `_ready()` upgrades each service to a real adapter
-  **iff** its Android plugin singleton is present (`Engine.has_singleton(...)`), else keeps the dev
-  stub. Headless/desktop → stub (so the gate stays green); a real device with the plugins → live.
-- **Config placeholders** — `scripts/monetization_config.gd` holds the ad-unit / product / singleton
-  constants (all empty/default today). The `*Real` adapters read these.
-- **Callback-driven grants** — both the stub and the real adapter emit `reward_earned` /
-  `purchase_succeeded`; the grant (revive / set ads-removed) runs in the signal handler, so wiring
-  the real SDK requires **no caller changes**.
+1. Open [AdMob](https://admob.google.com/) and create or select the Android app with package
+   `org.aqueduct.game`.
+2. Create one **Rewarded** unit and one **Interstitial** unit. Copy the App ID and both unit IDs.
+   Google’s [ID-copy help](https://support.google.com/admob/answer/7356431) explains where to find them.
+   Put the complete canonical values in `scripts/monetization_config.gd` as `ADMOB_APP_ID`,
+   `AD_UNIT_REWARDED`, and `AD_UNIT_INTERSTITIAL`. Do not edit anything under `addons/admob/`; the project
+   override injects the selected App ID into the Android manifest from the shared config.
+3. Configure EEA, UK, and Switzerland privacy messaging in AdMob/UMP.
+4. Publish a privacy policy and `app-ads.txt`, and provide their URLs.
+5. Register every production-ID connected-device at [AdMob test devices](https://apps.admob.com/v2/settings/test-devices).
+   Each device needs its own Google-reported UMP debug hash.
+6. Complete the app and signing setup in [Google Play Console](https://play.google.com/console/), then provide
+   the production signing/export inputs needed for a release build.
 
-> **Note on "secrets":** AdMob app/ad-unit IDs and Play Billing product IDs are **not secret** —
-> they are embedded in every published APK. `monetization_config.gd` is committed with empty
-> placeholders; filling in your real IDs and committing them is fine. (Keystores and service-account
-> JSON **are** secret — never commit those.)
+## Already automated
 
-## Accounts / credentials you must provide
+- `scripts/services.gd` selects AdMob only when the Android plugin singleton is available; otherwise it stays
+  STUB. LIVE fails closed to STUB unless the App ID, rewarded ID, and interstitial ID are all complete and
+  non-demo.
+- Android Test packages Google Mobile Ads 24.9.0 and UMP 3.2.0 through the Gradle export.
+- The export wrapper scopes the Test selector to the Godot export process. Without that selector, the project
+  override disables Poing's native libraries, dependencies, and manifest metadata.
+- Android Test uses these Google demo IDs:
+  - App: `ca-app-pub-3940256099942544~3347511713`
+  - Rewarded: `ca-app-pub-3940256099942544/5224354917`
+  - Interstitial: `ca-app-pub-3940256099942544/1033173712`
+- Samsung `SM-S921B` (`RFCYA02N5LZ`) is registered in TEST with UMP hash
+  `71DA107F6DC7F38FD723AD65ACE5D574` and TEST-only `NOT_EEA` geography. Another device needs its own hash.
+- Real rewarded revive and between-run interstitial Test Ads were visibly proven on that device; reward and
+  dismiss callbacks resume gameplay.
 
-| Need | Where | Used for |
-|------|-------|----------|
-| Google Play Console account (one-time $25) | play.google.com/console | publishing, IAP products, signing |
-| AdMob account | admob.google.com | App ID + ad-unit IDs |
-| A **Rewarded** ad unit ID | AdMob → your app → Ad units | the Revive ad |
-| An **Interstitial** ad unit ID | AdMob → your app → Ad units | the between-runs ad |
-| A managed in-app product `remove_ads` | Play Console → Monetize → In-app products | the Remove-Ads purchase |
-| Upload/signing keystore | you generate (`keytool`) | signed AAB (IAP + ads only work on a Play-distributed build) |
+## Verification and release boundary
 
-## Steps to go live
+Run from the repository root:
 
-1. **Fill `scripts/monetization_config.gd`:** `ADMOB_APP_ID`, `AD_UNIT_REWARDED`,
-   `AD_UNIT_INTERSTITIAL`. (`BILLING_PRODUCT_REMOVE_ADS` already defaults to `remove_ads` — match it
-   to the Play Console product id.)
-2. **Godot editor → Project → Install Android Build Template** (the custom Gradle build the v2
-   plugins require).
-3. **Install the plugins via AssetLib** (Project → AssetLib): the Poing Studios **AdMob** plugin
-   (4.6-compatible) and the first-party **GodotGooglePlayBilling**. Enable both in Project →
-   Plugins, and tick them in the Android **Export → Plugins** tab.
-4. **AdMob App ID** is injected by the AdMob plugin's export options (it writes
-   `GADApplicationIdentifier` into the generated manifest) — do **not** hand-edit AndroidManifest.
-5. **Flip the export to gradle:** set `export_presets.cfg` `gradle_build/use_gradle_build=true`.
-   ⚠️ This switches off the verified **prebuilt-template** APK recipe and now needs the build
-   template (step 2) + a configured NDK. Only do this once the plugins are installed — it is
-   deliberately **left `false`** until then so the current recipe keeps working.
-6. **Confirm the AdMob singleton/API name** the installed plugin exposes. If it differs from
-   `"AdMob"`, update `MonetizationConfig.ADMOB_SINGLETON` and the `AdServiceReal` body.
-7. **Wire the `*Real` adapters** in `scripts/services.gd` (search `TODO(Phase 5)`):
-   - `AdServiceReal`: load+show the rewarded/interstitial ad; emit `reward_earned("revive")` **only**
-     from the SDK's reward callback (never right after the show call).
-   - `IapServiceReal`: start the billing flow; emit `purchase_succeeded("remove_ads")` from the
-     acknowledged-purchase callback.
-8. **Build a signed AAB**, upload to a closed testing track, and test on a device signed in with a
-   license-tester account — **rewarded ads and IAP only work on a Play-distributed signed build**,
-   not a sideloaded debug APK.
+```powershell
+& '.\tools\provision-ads-build.ps1'
+& '.\tools\android-preflight.ps1' -Target Test
+& '.\tools\export-ads-build.ps1' -Target Test
+```
 
-## Leaderboard (later, optional)
+The verified artifact is `C:\Temp\aqueduct-test.apk`. Test the labelled Test Ads on a physical device.
+On a clean checkout, provisioning uses the installed official Godot 4.6.2 source-template archive and
+verifies its pinned SHA-256; no editor build-template install is needed. The generated `android/build/`
+remains ignored, while the committed Poing v4.3.1 Android package is checksum-verified by Test preflight.
+The legacy Android preset remains unchanged/prebuilt; Android Test intentionally uses Gradle.
 
-The leaderboard is **local** today (device top-10, `SaveStore`). The `Services.leaderboard`
-interface (`submit_score`, `get_top`) is stable, so an online backend (Google Play Games Services or
-a custom REST service) drops in by adding a `LeaderboardServiceReal` and dispatching it the same way.
-That interface is **synchronous** today; an online backend will need a signal-based async wrapper —
-add that when you wire it, don't pre-build it.
+The live build remains blocked until production App ID/unit IDs, privacy-policy and `app-ads.txt` URLs, and
+release signing/account inputs are supplied. No production export preset exists yet.
 
-> **Anti-cheat:** local scores live in plaintext `user://` and are trivially editable. When an online
-> backend is added, validate submitted scores server-side rather than trusting the client value.
+Billing, Remove Ads, cosmetics, and online leaderboards are deferred to separate future plans and are not
+offered in this ads scope.
+
+For Google’s test-ad rules, see the [Android test-ad warning](https://developers.google.com/admob/android/test-ads).

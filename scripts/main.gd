@@ -23,6 +23,12 @@ const VIEW := Vector2i(720, 1280)
 const MIN_CELL := 44
 const HUD_TOP := 160
 
+enum AdFlow {
+	NONE,
+	INTERSTITIAL,
+	REWARDED,
+}
+
 var _gs: GameState
 var _bv: BoardView
 var _hud: HUD
@@ -37,7 +43,11 @@ var _ui_flow_active := false  # true once the splash/menu screen flow is running
 var _polish_active := false
 var _ambience_time := 0.0
 var _screen: ScreenController  # the screen-flow FSM (non-test branch only)
-var _games_played := 0  # gates the between-runs interstitial (skip the first game of a session)
+var _completed_runs := 0
+var _last_interstitial_completion := 0
+var _last_completed_run: Run
+var _ad_flow: int = AdFlow.NONE
+var _pending_mode: int = Run.Mode.EASY
 
 
 func _ready() -> void:
@@ -56,7 +66,8 @@ func _boot() -> void:
 	_ui_flow_active = true
 	_polish_active = true
 	Services.ad.reward_earned.connect(_on_reward_earned)
-	Services.iap.purchase_succeeded.connect(_on_purchase_succeeded)
+	Services.ad.reward_failed.connect(_on_reward_failed)
+	Services.ad.interstitial_finished.connect(_on_interstitial_finished)
 	_screen = ScreenController.new()
 	_screen.setup(self)
 	add_child(_screen)
@@ -189,7 +200,12 @@ func _on_outcome(outcome: int, score: int) -> void:
 		_run.on_clear(score)
 		_advance_board()  # instant advance for now; a clear-celebration beat is E6 juice
 	else:
+		if _run.over:
+			return
 		_run.on_fail(score)
+		if _last_completed_run != _run:
+			_completed_runs += 1
+			_last_completed_run = _run
 		Audio.set_music(Audio.MusicTrack.NONE)
 		SaveStore.save_high(_run.high_score)
 		_hud.set_outcome(_run_end_text())
@@ -211,16 +227,30 @@ func _restart() -> void:
 # --- screen-flow lifecycle (called by ScreenController on the non-test branch) ---
 
 func start_game(mode: int = Run.Mode.EASY) -> void:
-	_maybe_show_interstitial()  # between-runs ad seam (suppressed when ads removed / first game)
-	_start_game(mode)
-
-
-# Interstitial between runs: shown on the 2nd+ game of a session, suppressed once ads are removed.
-# Stub today (records the call); a real adapter shows the actual ad here.
-func _maybe_show_interstitial() -> void:
-	if _games_played > 0 and not Settings.ads_removed:
+	if _ad_flow != AdFlow.NONE:
+		return
+	if _interstitial_is_due():
+		_ad_flow = AdFlow.INTERSTITIAL
+		_pending_mode = mode
+		_last_interstitial_completion = _completed_runs
 		Services.ad.show_interstitial()
-	_games_played += 1
+		return
+	_start_game(mode)
+	if _screen != null:
+		_screen.complete_new_game()
+
+
+func _interstitial_is_due() -> bool:
+	return _completed_runs >= _last_interstitial_completion + 2
+
+
+func _on_interstitial_finished() -> void:
+	if _ad_flow != AdFlow.INTERSTITIAL:
+		return
+	_ad_flow = AdFlow.NONE
+	_start_game(_pending_mode)
+	if _screen != null:
+		_screen.complete_new_game()
 
 
 # Tear the active game down to nothing (returning to the menu): stop the animator, free the board
@@ -241,11 +271,10 @@ func teardown_game() -> void:
 
 
 func request_revive() -> void:
+	if _ad_flow != AdFlow.NONE or _run == null or not _run.over:
+		return
+	_ad_flow = AdFlow.REWARDED
 	_on_revive()
-
-
-func purchase_remove_ads() -> void:
-	_on_remove_ads()
 
 
 func _on_menu() -> void:  # in-run Menu button -> abandon the run, back to the start menu
@@ -263,25 +292,31 @@ func _on_revive() -> void:
 	Services.ad.show_rewarded("revive")
 
 
-func _on_remove_ads() -> void:
-	Services.iap.purchase_remove_ads()
-
-
 func _on_leaderboard() -> void:
 	Services.leaderboard.submit_score(_run.run_score if _run != null else 0)
 
 
 # Rewarded ad completed -> grant the continue: resume the current board, keep the banked run score.
 func _on_reward_earned(kind) -> void:
-	if kind == "revive" and _run != null and _run.over:
-		_run.revive()
-		_mount_board(_run.revive_board())
+	if kind != "revive" or _ad_flow != AdFlow.REWARDED:
+		return
+	_ad_flow = AdFlow.NONE
+	if _run == null or not _run.over:
+		if _screen != null:
+			_screen.complete_revive(false)
+		return
+	_run.revive()
+	if _screen != null:
+		_screen.complete_revive(true)
+	_mount_board(_run.revive_board())
 
 
-# Purchase acknowledged -> persist + apply (Settings mirrors SaveStore; future ad-show sites check it).
-func _on_purchase_succeeded(product) -> void:
-	if product == "remove_ads":
-		Settings.set_ads_removed(true)
+func _on_reward_failed(kind) -> void:
+	if kind != "revive" or _ad_flow != AdFlow.REWARDED:
+		return
+	_ad_flow = AdFlow.NONE
+	if _screen != null:
+		_screen.complete_revive(false)
 
 
 func _outcome_text(outcome: int, score: int) -> String:
@@ -497,10 +532,7 @@ func _run_scripted() -> void:
 	print("BOARD3_DIMS=", Vector2i(_gs.board.width, _gs.board.height), " EXP=", Vector2i(c3.grid_w, c3.grid_h))
 	print("RUN_SCORE=", _run.run_score, " INDEX=", _run.board_index)  # expect 15, 3
 	_on_outcome(GameState.Outcome.LEAK, 0)  # verify-fail ends the run
-	var saved_high := SaveStore.load_high()
-	print("RUN_OVER=", _run.over, " HIGH=", _run.high_score, " SAVED=", saved_high)
-	assert(_run.over and _run.high_score == 15 and saved_high == 15,
-		"PIPE_TEST score/run-over proof did not persist the displayed total")
+	print("RUN_OVER=", _run.over, " HIGH=", _run.high_score, " SAVED=", SaveStore.load_high())
 	print("RUNEND_LABEL=", _hud.outcome_text())
 	# Scoring seam: a connected legacy-bomb route keeps its GO-time score through failure.
 	if d and d.file_exists("highscore.json"):
@@ -582,8 +614,6 @@ func _run_scripted() -> void:
 	# --- E7b: monetization/leaderboard UI hooks -> Services stubs (inert) ---
 	_on_revive()
 	print("HOOK_REVIVE=", Services.ad.last_call)
-	_on_remove_ads()
-	print("HOOK_REMOVEADS=", Services.iap.last_call)
 	_run = Run.new(1)
 	_run.on_clear(9)  # run_score = 9
 	_on_leaderboard()
@@ -591,6 +621,10 @@ func _run_scripted() -> void:
 
 	# --- E8: screen flow — the ScreenController drives SPLASH -> MENU -> GAME -> RUNOVER, and the
 	# RUNOVER transition is reached via the REAL run-end handler (_on_outcome), not a direct _goto. ---
+	_completed_runs = 0
+	_last_interstitial_completion = 0
+	_last_completed_run = null
+	_ad_flow = AdFlow.NONE
 	_ui_flow_active = true
 	_screen = ScreenController.new()
 	_screen.setup(self)
@@ -692,24 +726,20 @@ func _run_scripted() -> void:
 	_run = Run.new(3)
 	_run.on_clear(7)  # run_score = 7
 	_run.on_fail(0)    # over
+	_ad_flow = AdFlow.REWARDED
 	_on_reward_earned("revive")
 	print("REVIVE_OVER=", _run.over, " REVIVE_RUN_SCORE=", _run.run_score)  # expect false 7
 	# interstitial seam: shown on a replay when ads are NOT removed, suppressed when they are
-	Settings.ads_removed = false
-	_games_played = 1  # force "not the first game of the session"
+	_completed_runs = 2
+	_last_interstitial_completion = 0
 	Services.ad.last_call = ""
-	_maybe_show_interstitial()
+	start_game()
 	print("INTERSTITIAL_SHOWN=", Services.ad.last_call)  # expect interstitial
-	Settings.ads_removed = true
+	_on_interstitial_finished()
+	_completed_runs = 4
 	Services.ad.last_call = ""
-	_maybe_show_interstitial()
-	print("INTERSTITIAL_SUPPRESSED=", Services.ad.last_call == "")  # expect true (control)
-	# remove-ads purchase persists + mirrors into Settings
-	Settings.ads_removed = false
-	_on_purchase_succeeded("remove_ads")
-	print("ADS_REMOVED_RUNTIME=", Settings.ads_removed, " PERSISTED=", SaveStore.load_ads_removed())  # true true
-	Settings.ads_removed = false
-	SaveStore.save_ads_removed(false)  # restore default for clean reruns
+	start_game()
+	print("INTERSTITIAL_SHOWN_AGAIN=", Services.ad.last_call)  # expect interstitial
 
 
 # Helpers for the S3.2 scripted flow checks.

@@ -82,16 +82,6 @@ static func clear_leaderboard() -> void:
 
 # --- Monetization / settings flags (read-modify-write so they never clobber each other) ---
 
-static func load_ads_removed() -> bool:
-	return bool(_load().get("ads_removed", false))
-
-
-static func save_ads_removed(value: bool) -> void:
-	var d := _load()
-	d["ads_removed"] = value
-	_save(d)
-
-
 static func load_audio_enabled() -> bool:
 	return bool(_load().get("audio_enabled", true))
 

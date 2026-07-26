@@ -8,6 +8,7 @@
 
 # Council review scratch (transient audit artifacts)
 .claude/council/
+/.codex/
 
 # Tooling temp
 .gut_src/
@@ -17,3 +18,5 @@
 Thumbs.db
 .DS_Store
 build/
+/android/.build_version
+/ios/

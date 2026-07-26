@@ -5,6 +5,8 @@ signal difficulty_selected(mode: int)
 const Run = preload("res://scripts/model/run.gd")
 const UiStyle = preload("res://scripts/view/ui_style.gd")
 
+var _buttons: Array[Button] = []
+
 
 func _init() -> void:
 	layer = 5
@@ -29,6 +31,12 @@ func _add_mode_button(column: VBoxContainer, mode: int, primary: bool) -> void:
 	button.name = "%sButton" % str(config.name)
 	button.pressed.connect(difficulty_selected.emit.bind(mode))
 	column.add_child(button)
+	_buttons.append(button)
+
+
+func set_ad_pending(pending: bool) -> void:
+	for button in _buttons:
+		button.disabled = pending
 
 
 func connect_view(controller) -> void:

@@ -1,34 +1,24 @@
 extends Node
-## Services autoload: monetization + leaderboard behind named interfaces. The DEV STUBS (default)
-## record last_call and emit DEFERRED success signals, so the dev path mirrors the real async-SDK
-## path — callers grant in the signal handler, never right after a fire-and-forget call. At boot,
-## _ready() swaps in a *Real adapter per service IFF its Android plugin singleton is present (real
-## device with the v2 plugins installed); headless / desktop have no singleton -> the stub stays.
-## Live SDK wiring is the deferred manual milestone (see docs/MONETIZATION_SETUP.md).
+## Services autoload: monetization + leaderboard behind named interfaces. The default stubs record
+## last_call and emit deferred success signals, so callers use the same async contract in every mode.
+## Ads upgrade only after the strict Android environment resolver selects TEST or LIVE.
 
 const MonetizationConfig = preload("res://scripts/monetization_config.gd")
 const SaveStore = preload("res://scripts/save_store.gd")
+const AdServiceAdmob = preload("res://scripts/ad_service_admob.gd")
 
 
 class AdServiceStub:
 	signal reward_earned(kind: String)
+	signal reward_failed(kind: String)
+	signal interstitial_finished()
 	var last_call: String = ""
 	func show_rewarded(kind: String) -> void:
 		last_call = "rewarded:" + kind
 		reward_earned.emit.call_deferred(kind)  # the stub "completes" the rewarded ad next idle
 	func show_interstitial() -> void:
 		last_call = "interstitial"
-
-
-class IapServiceStub:
-	signal purchase_succeeded(product: String)
-	var last_call: String = ""
-	func purchase_remove_ads() -> void:
-		last_call = "remove_ads"
-		purchase_succeeded.emit.call_deferred("remove_ads")
-	func purchase_cosmetic(id: String) -> void:
-		last_call = "cosmetic:" + id
-		purchase_succeeded.emit.call_deferred(id)
+		interstitial_finished.emit.call_deferred()
 
 
 class LeaderboardServiceStub:
@@ -41,50 +31,50 @@ class LeaderboardServiceStub:
 		return SaveStore.load_leaderboard().slice(0, n)
 
 
-# --- Real adapters: only instantiated when the plugin singleton is present (Phase 5 wiring). Bodies
-# are intentionally thin shells — they can't be exercised headless and the SDK isn't wired yet; they
-# mirror the stub interface so callers don't change when a real adapter takes over.
-
-class AdServiceReal:
-	signal reward_earned(kind: String)
-	var last_call: String = ""
-	var _plugin
-	func _init() -> void:
-		_plugin = Engine.get_singleton(MonetizationConfig.ADMOB_SINGLETON)
-		# TODO(Phase 5): connect the plugin's onUserEarnedReward callback -> reward_earned.emit(kind)
-	func show_rewarded(kind: String) -> void:
-		last_call = "rewarded:" + kind
-		# TODO(Phase 5): load+show rewarded (MonetizationConfig.AD_UNIT_REWARDED); grant ONLY from
-		# the SDK reward callback above, never here.
-	func show_interstitial() -> void:
-		last_call = "interstitial"
-		# TODO(Phase 5): show interstitial (MonetizationConfig.AD_UNIT_INTERSTITIAL)
-
-
-class IapServiceReal:
-	signal purchase_succeeded(product: String)
-	var last_call: String = ""
-	var _plugin
-	func _init() -> void:
-		_plugin = Engine.get_singleton(MonetizationConfig.BILLING_SINGLETON)
-		# TODO(Phase 5): connect the plugin's purchase-acknowledged callback -> purchase_succeeded.emit
-	func purchase_remove_ads() -> void:
-		last_call = "remove_ads"
-		# TODO(Phase 5): start the billing flow (MonetizationConfig.BILLING_PRODUCT_REMOVE_ADS); set
-		# ads_removed ONLY from the acknowledged-purchase callback.
-	func purchase_cosmetic(id: String) -> void:
-		last_call = "cosmetic:" + id
-
-
-# Stub by default (headless/desktop). _ready() upgrades to a *Real adapter where the plugin exists.
+# Stub by default (headless/desktop). _ready() upgrades ads only when the resolver permits it.
 var ad = AdServiceStub.new()
-var iap = IapServiceStub.new()
 var leaderboard = LeaderboardServiceStub.new()
+var ad_mode: String = "STUB"
+
+
+static func create_ad_service(mode, rewarded_id: String, interstitial_id: String, harness = null):
+	var is_test_mode: bool = (mode is String and mode == "TEST") or (mode is int and mode == MonetizationConfig.AdMode.TEST)
+	var is_live_mode: bool = (mode is String and mode == "LIVE") or (mode is int and mode == MonetizationConfig.AdMode.LIVE)
+	if is_test_mode or is_live_mode:
+		return AdServiceAdmob.new(harness, rewarded_id, interstitial_id, is_test_mode)
+	return AdServiceStub.new()
 
 
 func _ready() -> void:
-	if Engine.has_singleton(MonetizationConfig.ADMOB_SINGLETON):
-		ad = AdServiceReal.new()
-	if Engine.has_singleton(MonetizationConfig.BILLING_SINGLETON):
-		iap = IapServiceReal.new()
+	var custom_features: Array[String] = []
+	if OS.has_feature("admob_test"):
+		custom_features.append("admob_test")
+	if OS.has_feature("admob_live"):
+		custom_features.append("admob_live")
+	var native_singletons: Array[String] = []
+	for singleton in MonetizationConfig.ADMOB_SINGLETONS:
+		if Engine.has_singleton(singleton):
+			native_singletons.append(singleton)
+	var export_target := ""
+	if custom_features == ["admob_test"]:
+		export_target = "Test"
+	elif custom_features == ["admob_live"]:
+		export_target = "Live"
+	var selection: Dictionary = MonetizationConfig.resolve_export_ads_selection(export_target)
+	ad_mode = MonetizationConfig.new().resolve_ad_mode({
+		"platform": OS.get_name().to_lower(),
+		"headless": OS.has_feature("headless"),
+		"pipe_test": OS.get_environment("PIPE_TEST") != "",
+		"custom_features": custom_features,
+		"native_singletons": native_singletons,
+		"app_id": selection.app_id,
+		"rewarded_id": selection.rewarded_id,
+		"interstitial_id": selection.interstitial_id,
+	})
+	if ad_mode != "STUB":
+		ad = create_ad_service(
+			ad_mode,
+			selection.rewarded_id,
+			selection.interstitial_id
+		)
 	# leaderboard stays local (stub) until an online backend exists; the interface is unchanged.

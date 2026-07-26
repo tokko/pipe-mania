@@ -2,7 +2,7 @@ extends Node
 ## Screen-flow controller (mounted only on the non-test branch of Main): SPLASH -> MENU -> GAME ->
 ## RUNOVER, plus modal overlays (leaderboard / settings). Owns the non-game screen views + the
 ## modal slot; delegates the game lifecycle to Main (start_game / teardown_game / request_revive /
-## purchase_remove_ads). It is the only thing that reads SaveStore for the views, so the views stay
+## request_revive). It is the only thing that reads SaveStore for the views, so the views stay
 ## pure (observe + emit). The headless gate never instantiates this node.
 
 const SplashView = preload("res://scripts/view/splash_view.gd")
@@ -18,6 +18,7 @@ var _screen_view: CanvasLayer  # the full non-game screen (splash | menu)
 var _overlay: CanvasLayer      # run-over (over the frozen board)
 var _modal: CanvasLayer        # leaderboard | settings (topmost)
 var _pending_score := 0        # run score awaiting an initials submit
+var _ad_flow_pending := false
 
 
 func setup(main: Node) -> void:
@@ -44,6 +45,8 @@ func _show_splash() -> void:
 
 
 func go_menu() -> void:
+	if _ad_flow_pending:
+		return
 	_modal = _swap(_modal, null)
 	_overlay = _swap(_overlay, null)
 	_main.teardown_game()
@@ -77,10 +80,14 @@ func _on_splash_dismissed() -> void:
 
 
 func _on_menu_play() -> void:
+	if _ad_flow_pending:
+		return
 	_show_difficulty()
 
 
 func _on_runover_new_game() -> void:
+	if _ad_flow_pending or _overlay == null:
+		return
 	_show_difficulty()
 
 
@@ -90,16 +97,42 @@ func _show_difficulty() -> void:
 
 
 func _on_difficulty_selected(mode: int) -> void:
-	_screen_view = _swap(_screen_view, null)
+	if _ad_flow_pending or not _screen_view is DifficultyView:
+		return
+	_ad_flow_pending = true
+	_screen_view.call("set_ad_pending", true)
 	_main.start_game(mode)
 
 
 func _on_runover_revive() -> void:
-	_overlay = _swap(_overlay, null)
+	if _ad_flow_pending or _overlay == null:
+		return
+	_ad_flow_pending = true
+	_overlay.call("set_ad_pending", true)
 	_main.request_revive()
 
 
+func complete_revive(success: bool) -> void:
+	if not _ad_flow_pending:
+		return
+	_ad_flow_pending = false
+	if success:
+		_overlay = _swap(_overlay, null)
+	elif _overlay != null:
+		_overlay.call("show_ad_failure")
+
+
+func complete_new_game() -> void:
+	if not _ad_flow_pending:
+		return
+	_ad_flow_pending = false
+	_overlay = _swap(_overlay, null)
+	_screen_view = _swap(_screen_view, null)
+
+
 func _on_runover_menu() -> void:
+	if _ad_flow_pending:
+		return
 	go_menu()
 
 
@@ -116,7 +149,7 @@ func _on_open_leaderboard() -> void:
 
 func _on_open_settings() -> void:
 	var v := SettingsView.new()
-	v.setup(Settings.audio_enabled, Settings.ads_removed)
+	v.setup(Settings.audio_enabled)
 	_modal = _swap(_modal, v)
 
 
@@ -134,10 +167,6 @@ func handle_go_back() -> bool:
 func _on_settings_audio_toggled() -> void:
 	Settings.toggle_audio()
 	Audio.sync_audio_enabled()
-
-
-func _on_settings_remove_ads() -> void:
-	_main.purchase_remove_ads()
 
 
 # --- headless gate helper ---
