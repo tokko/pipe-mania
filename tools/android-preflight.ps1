@@ -69,7 +69,7 @@ $projectText = Get-Content (Join-Path $repoRoot 'project.godot') -Raw -ErrorActi
 Check 'project.godot import_etc2_astc=true' ($projectText -match 'textures/vram_compression/import_etc2_astc=true') 'Enable Rendering > Textures > VRAM Compression > Import ETC2 ASTC'
 
 Check "Selected preset name ($Target)" ((Get-AssignmentValue $preset 'name') -eq $Target -or ($Target -eq 'Test' -and (Get-AssignmentValue $preset 'name') -eq 'Android Test')) 'Define the selected Android export preset'
-Check 'Selected preset package org.aqueduct.game' ((Get-AssignmentValue $options 'package/unique_name') -eq 'org.aqueduct.game') 'Set package/unique_name to org.aqueduct.game'
+Check 'Selected preset package com.tokko.aqueduct' ((Get-AssignmentValue $options 'package/unique_name') -eq 'com.tokko.aqueduct') 'Set package/unique_name to com.tokko.aqueduct'
 Check 'Selected preset arm64 only' ((Get-AssignmentValue $options 'architectures/arm64-v8a') -eq 'true' -and (Get-AssignmentValue $options 'architectures/armeabi-v7a') -eq 'false' -and (Get-AssignmentValue $options 'architectures/x86') -eq 'false' -and (Get-AssignmentValue $options 'architectures/x86_64') -eq 'false') 'Enable arm64 and disable all other Android architectures'
 
 if ($Target -eq 'Test') {

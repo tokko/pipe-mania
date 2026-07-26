@@ -5,7 +5,7 @@
 > ("Pipe Mania" / "Pipe Dream" are trademarks). Fill the TODOs before publishing.
 
 - **Title:** Aqueduct
-- **Package:** org.aqueduct.game  (placeholder — confirm ownership)
+- **Package:** com.tokko.aqueduct
 - **Category:** Puzzle
 - **Short description (≤80 chars):** Route the pipes, run the water — build the longest leak-free line.
 - **Full description:**

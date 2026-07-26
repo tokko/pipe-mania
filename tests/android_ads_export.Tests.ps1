@@ -70,8 +70,8 @@ Describe 'Android AdMob export structure' {
         $bytes = [IO.File]::ReadAllBytes($path)
 
         # Captured from the current file before preset 1 production edits. Hash raw bytes, including LF bytes.
-        $preset0PrefixByteLength = 7417
-        $preset0PrefixSha256 = '22027e6d8b726ee9f670027cc053ace62d308938e84616035987c16544540964'
+        $preset0PrefixByteLength = 7418
+        $preset0PrefixSha256 = 'b6dc075deadc6126d26a5d3ee3be02ebc146c7f2891591489a43ad242b14d16b'
         ($bytes.Length -ge $preset0PrefixByteLength) | Should Be $true
 
         $prefix = New-Object byte[] $preset0PrefixByteLength
@@ -96,7 +96,7 @@ Describe 'Android AdMob export structure' {
         (Get-AssignmentValue $preset.Options 'architectures/arm64-v8a') | Should Be 'true'
         (Get-AssignmentValue $preset.Options 'architectures/x86') | Should Be 'false'
         (Get-AssignmentValue $preset.Options 'architectures/x86_64') | Should Be 'false'
-        (Get-AssignmentValue $preset.Options 'package/unique_name') | Should Be 'org.aqueduct.game'
+        (Get-AssignmentValue $preset.Options 'package/unique_name') | Should Be 'com.tokko.aqueduct'
         (Get-AssignmentValue $preset.Options 'gradle_build/export_format') | Should Be '0'
     }
 
@@ -114,7 +114,7 @@ Describe 'Android AdMob export structure' {
         (Get-AssignmentValue $preset.Options 'architectures/arm64-v8a') | Should Be 'true'
         (Get-AssignmentValue $preset.Options 'architectures/x86') | Should Be 'false'
         (Get-AssignmentValue $preset.Options 'architectures/x86_64') | Should Be 'false'
-        (Get-AssignmentValue $preset.Options 'package/unique_name') | Should Be 'org.aqueduct.game'
+        (Get-AssignmentValue $preset.Options 'package/unique_name') | Should Be 'com.tokko.aqueduct'
         (Get-AssignmentValue $preset.Options 'gradle_build/export_format') | Should Be '0'
     }
 

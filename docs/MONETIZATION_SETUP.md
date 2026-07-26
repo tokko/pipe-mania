@@ -11,7 +11,7 @@ Complete these steps in the relevant Google accounts, then provide Codex only th
 Do not share credentials, keystore passwords, payment data, or service-account keys.
 
 1. Open [AdMob](https://admob.google.com/) and create or select the Android app with package
-   `org.aqueduct.game`.
+   `com.tokko.aqueduct`.
 2. Create one **Rewarded** unit and one **Interstitial** unit. Copy the App ID and both unit IDs.
    Google’s [ID-copy help](https://support.google.com/admob/answer/7356431) explains where to find them.
    Put the complete canonical values in `scripts/monetization_config.gd` as `ADMOB_APP_ID`,
