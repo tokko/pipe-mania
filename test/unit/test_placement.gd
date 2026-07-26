@@ -1,6 +1,6 @@
 extends "res://addons/gut/test.gd"
-## S1.3 — GameState placement: forced current piece, open-cell only, dry overwrite
-## allowed, wet overwrite + flow-phase placement rejected.
+## S1.3 — GameState placement: forced current piece, open-cell only; occupied cells and
+## flow-phase placement rejected.
 
 const Board = preload("res://scripts/model/board.gd")
 const GameState = preload("res://scripts/model/game_state.gd")
@@ -50,10 +50,14 @@ func test_place_rejected_in_flow_phase() -> void:
 	assert_false(gs.place(2, 2), "no placement during FLOW")
 
 
-func test_dry_overwrite_allowed() -> void:
+func test_place_rejected_on_existing_dry_pipe() -> void:
 	var gs = _gs()
 	assert_true(gs.place(2, 2))
-	assert_true(gs.place(2, 2), "overwriting a DRY pipe is allowed")
+	var placed_piece = gs.pipe_at(2, 2)
+	var placed_rotation = gs.pipe_rot_at(2, 2)
+	assert_false(gs.place(2, 2), "cannot replace an already placed pipe")
+	assert_eq(gs.pipe_at(2, 2), placed_piece, "the original pipe remains")
+	assert_eq(gs.pipe_rot_at(2, 2), placed_rotation, "the original pipe orientation remains")
 
 
 func test_wet_overwrite_rejected() -> void:  # control
