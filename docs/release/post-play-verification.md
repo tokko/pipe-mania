@@ -1,7 +1,8 @@
 # After Google Play Verification
 
 Use this checklist only after Google has approved the Personal Play Console account identity
-verification. The app cannot be created before then.
+verification. The app cannot be created before then. Verification may take days; resume this
+checklist when Google confirms approval rather than on a scheduled date.
 
 ## 1. Finish the account and create the app
 
@@ -20,7 +21,7 @@ verification. The app cannot be created before then.
 3. Configure AdMob consent messaging for the EEA, UK, and Switzerland; add each development device
    as an AdMob test device before it receives a production-ID build.
 4. Publish the Aqueduct privacy policy and record its public HTTPS URL in Play Console, the store
-   listing, and the app. The site deployment started on 2026-07-26; use its final URL once the
+   listing, and the app. Check the policy-site deployment status and use its final URL once the
    hosting provider reports it.
 5. Host an `app-ads.txt` file at the root of the same public developer website after AdMob provides
    the required publisher line.
